@@ -41,7 +41,7 @@ pub fn abbreviation_matches(identifier: &str, abbreviation: &str) -> bool {
         .all(|(abbreviation_part, identifier_word)| identifier_word.starts_with(abbreviation_part))
 }
 
-pub fn resolve_dependent_tasks(tasks: Vec<Todo>) -> Option<HashMap<String, Vec<String>>> {
+pub fn resolve_dependent_tasks(tasks: &Vec<Todo>) -> Option<HashMap<String, Vec<String>>> {
     let mut dependent_tasks = HashMap::new();
 
     for task in tasks.iter() {
