@@ -1,5 +1,4 @@
 use nom::types::CompleteStr;
-use nom::IResult;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum TaskStatus {
@@ -48,9 +47,7 @@ named!(pub parse_todo<CompleteStr, Todo>, terminated!(
     ),
 alt!(eof!() | nom::eol)));
 
-pub fn parse_pando(input: &str) -> Option<Vec<Todo>> {
-    match many1!(CompleteStr(input), parse_todo) {
-        Ok((_, todos)) => Some(todos),
-        Err(_) => None
-    }
+pub fn parse_pando(input: &str) -> Vec<Todo> {
+    let (_, todos) = many1!(CompleteStr(input), parse_todo).expect("Incorrect input file format");
+    todos
 }

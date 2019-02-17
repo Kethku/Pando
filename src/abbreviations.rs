@@ -41,7 +41,7 @@ pub fn abbreviation_matches(identifier: &str, abbreviation: &str) -> bool {
         .all(|(abbreviation_part, identifier_word)| identifier_word.starts_with(abbreviation_part))
 }
 
-pub fn resolve_dependent_tasks(tasks: &Vec<Todo>) -> Option<HashMap<String, Vec<String>>> {
+pub fn resolve_dependent_tasks(tasks: &Vec<Todo>) -> HashMap<String, Vec<String>> {
     let mut dependent_tasks = HashMap::new();
 
     for task in tasks.iter() {
@@ -54,10 +54,10 @@ pub fn resolve_dependent_tasks(tasks: &Vec<Todo>) -> Option<HashMap<String, Vec<
                 Some(dependency) => dependent_tasks
                     .entry(dependency.identifier.clone())
                     .and_modify(|dependent_tasks| dependent_tasks.push(task.identifier.clone())),
-                None => return None
+                None => panic!("Dependency abbreviation {} not defined", dependency_abbreviation)
             };
         }
     }
 
-    Some(dependent_tasks)
+    dependent_tasks
 }

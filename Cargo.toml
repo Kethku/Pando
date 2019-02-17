@@ -6,4 +6,4 @@ edition = "2018"
 
 [dependencies]
 nom = "4.2.0"
-interpolate = "0.2.3"
+clap = {version = "2.32.0", features = ["yaml"]}

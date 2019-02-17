@@ -1,0 +1,18 @@
+name: Pando
+version: "0.1"
+author: Keith Simmons
+about: Todo Graph Renderer
+args:
+  - FILE:
+      help: The todo file to render
+      required: true
+  - dot:
+      short: d
+      long: dot
+      value_name: DOT
+      help: Tells Pando to output the dot format to the given file
+  - output:
+      short: o
+      long: output
+      value_name: OUTPUT
+      help: Tells Pando where to render the svg

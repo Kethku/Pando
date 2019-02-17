@@ -1,0 +1,2 @@
+install: cargo build --release; ok uninstall; cp ./target/release/pando.exe c:/dev/tools/pando.exe
+uninstall: rm c:/dev/tools/pando.exe -ErrorAction SilentlyContinue

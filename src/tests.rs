@@ -1,7 +1,8 @@
 use super::parser::*;
 use super::abbreviations::*;
+use super::generator::generate_dot_file;
+use super::compile;
 
-use std::collections::HashMap;
 use nom::types::CompleteStr;
 
 #[test]
@@ -44,13 +45,13 @@ fn parse_pando_works() {
 - Implement Parser [ SF ]
 - DOT Generator [ B ]
 - Command Line [ IP, DG ]"),
-        Some(vec![
+        vec![
             Todo::new(TaskStatus::Completed, "Brainstorm", vec![]),
             Todo::new(TaskStatus::InProgress, "Specify Format", vec!["B"]),
             Todo::new(TaskStatus::Waiting, "Implement Parser", vec!["SF"]),
             Todo::new(TaskStatus::Waiting, "DOT Generator", vec!["B"]),
             Todo::new(TaskStatus::Waiting, "Command Line", vec!["IP", "DG"])
-        ]));
+        ]);
 }
 
 #[test]
@@ -74,27 +75,70 @@ fn abbreviation_matches_works() {
 
 #[test]
 fn abbreviation_resolution_works() {
-    let resolved_abbreviations = resolve_dependent_tasks(vec![
+    let resolved_abbreviations = resolve_dependent_tasks(&vec![
         Todo::new(TaskStatus::Completed, "Brainstorm", vec![]),
-        Todo::new(TaskStatus::InProgress, "Specify Format", vec!["B"]),
-        Todo::new(TaskStatus::Waiting, "Implement Parser", vec!["SF"]),
-        Todo::new(TaskStatus::Waiting, "DOT Generator", vec!["B"]),
-        Todo::new(TaskStatus::Waiting, "Command Line", vec!["IP", "DG"])
-    ]).unwrap();
-
-    assert_eq!(resolved_abbreviations["Brainstorm"], vec!["Specify Format", "DOT Generator"]);
-    assert_eq!(resolved_abbreviations["Specify Format"], vec!["Implement Parser"]);
-    assert_eq!(resolved_abbreviations["Implement Parser"], vec!["Command Line"]);
-    assert_eq!(resolved_abbreviations["DOT Generator"], vec!["Command Line"]);
-    assert!(resolved_abbreviations["Command Line"].is_empty());
-
-    let resolved_abbreviations = resolve_dependent_tasks(vec![
-        Todo::new(TaskStatus::Completed, "Brainstorm", vec!["FB"]),
         Todo::new(TaskStatus::InProgress, "Specify Format", vec!["B"]),
         Todo::new(TaskStatus::Waiting, "Implement Parser", vec!["SF"]),
         Todo::new(TaskStatus::Waiting, "DOT Generator", vec!["B"]),
         Todo::new(TaskStatus::Waiting, "Command Line", vec!["IP", "DG"])
     ]);
 
-    assert!(resolved_abbreviations.is_none());
+    assert_eq!(resolved_abbreviations["Brainstorm"], vec!["Specify Format", "DOT Generator"]);
+    assert_eq!(resolved_abbreviations["Specify Format"], vec!["Implement Parser"]);
+    assert_eq!(resolved_abbreviations["Implement Parser"], vec!["Command Line"]);
+    assert_eq!(resolved_abbreviations["DOT Generator"], vec!["Command Line"]);
+    assert!(resolved_abbreviations["Command Line"].is_empty());
+}
+
+#[test]
+fn generator_dot_file_works() {
+    let generated = generate_dot_file(vec![
+        Todo::new(TaskStatus::Completed, "Brainstorm", vec![]),
+        Todo::new(TaskStatus::InProgress, "Specify Format", vec!["B"]),
+        Todo::new(TaskStatus::Waiting, "Implement Parser", vec!["SF"]),
+        Todo::new(TaskStatus::Waiting, "DOT Generator", vec!["B"]),
+        Todo::new(TaskStatus::Waiting, "Command Line", vec!["IP", "DG"])
+    ]);
+
+    let expected = "digraph {
+  node [shape=record, splines=\"curve\"];
+  Brainstorm[label=<<font color='gray'>Brainstorm <br/> <i>Complete</i></font>>, color=\"gray\"];
+  SpecifyFormat[label=<Specify Format <br/> <i>In Progress</i>>];
+  ImplementParser[label=<Implement Parser>];
+  DOTGenerator[label=<DOT Generator>];
+  CommandLine[label=<Command Line>];
+
+  Brainstorm -> { SpecifyFormat DOTGenerator };
+  SpecifyFormat -> ImplementParser;
+  ImplementParser -> CommandLine;
+  DOTGenerator -> CommandLine;
+}".to_string();
+
+    assert_eq!(generated, expected);
+}
+
+#[test]
+fn compile_works() {
+    let generated = compile(
+"x Brainstorm
+> Specify Format [ B ]
+- Implement Parser [ SF ]
+- DOT Generator [ B ]
+- Command Line [ IP, DG ]");
+
+    let expected = "digraph {
+  node [shape=record, splines=\"curve\"];
+  Brainstorm[label=<<font color='gray'>Brainstorm <br/> <i>Complete</i></font>>, color=\"gray\"];
+  SpecifyFormat[label=<Specify Format <br/> <i>In Progress</i>>];
+  ImplementParser[label=<Implement Parser>];
+  DOTGenerator[label=<DOT Generator>];
+  CommandLine[label=<Command Line>];
+
+  Brainstorm -> { SpecifyFormat DOTGenerator };
+  SpecifyFormat -> ImplementParser;
+  ImplementParser -> CommandLine;
+  DOTGenerator -> CommandLine;
+}".to_string();
+
+    assert_eq!(generated, expected);
 }
