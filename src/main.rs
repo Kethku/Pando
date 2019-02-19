@@ -70,7 +70,6 @@ fn main() {
         .arg("-Tsvg")
         .output()
         .expect("Could not execute graphviz command");
-
     let rendered_text = String::from_utf8(render_output.stdout).expect("Invalid graphviz output");
 
     if rendered_text.starts_with("Error") {
@@ -78,6 +77,6 @@ fn main() {
     } else {
         let mut output_file = File::create(&output_path).expect("Could not create output file");
         output_file.write_all(rendered_text.as_bytes()).expect("Could not write output file");
-        println!("Successfully output to {:?}", output_path);
+        println!("Successfully output to {}", output_path.to_str().expect("Output path could not convert to string"));
     }
 }
