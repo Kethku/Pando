@@ -1,1 +1,0 @@
-{"name":"__cargo_web_snippet_d560243ee1b67c6b436587dc951a200bc29da0a6","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof FormData) | 0;","arg_count":1}

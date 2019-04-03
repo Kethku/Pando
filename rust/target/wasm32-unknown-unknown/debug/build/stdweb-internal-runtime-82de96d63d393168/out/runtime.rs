@@ -1,1 +1,0 @@
-#[doc(hidden)]#[macro_export]macro_rules! stdweb_internal_runtime_initialize { ($sub:tt) => {}}

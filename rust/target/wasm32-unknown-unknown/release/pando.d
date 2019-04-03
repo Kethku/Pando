@@ -1,1 +1,0 @@
-C:\dev\Projects\Pando\Rust\target\wasm32-unknown-unknown\release\pando.wasm: C:\dev\Projects\Pando\Rust\src\generator.rs C:\dev\Projects\Pando\Rust\src\lib.rs C:\dev\Projects\Pando\Rust\src\operations.rs C:\dev\Projects\Pando\Rust\src\parser.rs
