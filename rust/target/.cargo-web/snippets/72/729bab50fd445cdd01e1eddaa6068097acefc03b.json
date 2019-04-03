@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_ee2ac14eaf4087d775bf8366e5a938975a26a075","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof GamepadButton) | 0;","arg_count":1}

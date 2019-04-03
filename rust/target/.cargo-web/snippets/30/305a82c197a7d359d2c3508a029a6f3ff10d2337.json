@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_dd8f917eaa599154550634746f5070d8ab941183","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof GamepadEvent) | 0;","arg_count":1}

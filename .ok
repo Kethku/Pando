@@ -1,2 +1,4 @@
-install: cargo build --release; ok uninstall; cp ./target/release/pando.exe c:/dev/tools/pando.exe
-uninstall: rm c:/dev/tools/pando.exe -ErrorAction SilentlyContinue
+build: pushd ./rust; cargo web build; popd; parcel build javascript/index.js
+dev: ok build; parcel ./index.html
+clean: rm ./dist -for -rec; rm ./rust/target -for -rec
+publish: ok clean; ok build; git add *; git commit -m "{0}"; git push

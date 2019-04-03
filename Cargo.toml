@@ -1,9 +1,0 @@
-[package]
-name = "pando"
-version = "0.1.0"
-authors = ["keith <keith@the-simmons.net>"]
-edition = "2018"
-
-[dependencies]
-nom = "4.2.0"
-clap = {version = "2.32.0", features = ["yaml"]}

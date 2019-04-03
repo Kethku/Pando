@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_4d03b32bdb2c57eef12eb2ca0b628aac8e227c10","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof HashChangeEvent && o.type === \"hashchange\") | 0;","arg_count":1}

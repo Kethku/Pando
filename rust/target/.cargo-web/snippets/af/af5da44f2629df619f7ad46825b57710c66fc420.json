@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_f09653a8228a1894cfa2f4aa2c10c178df2d960a","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof TouchEvent && o.type === \"touchleave\") | 0;","arg_count":1}

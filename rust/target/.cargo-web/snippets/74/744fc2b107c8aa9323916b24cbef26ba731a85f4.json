@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_d82c130d2ae1f6171579e3542165b884b92289ec","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof MutationObserver) | 0;","arg_count":1}

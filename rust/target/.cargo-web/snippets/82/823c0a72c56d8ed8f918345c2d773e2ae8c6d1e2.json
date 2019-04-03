@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_4fefb43dc20dbc0f600c34172f9e9703833f195e","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof WebSocket) | 0;","arg_count":1}

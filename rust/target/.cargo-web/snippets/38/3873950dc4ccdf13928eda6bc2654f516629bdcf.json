@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_6a0bf07b6e92fa20cf6af04918b9707e6ebc23bf","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof ArrayBuffer) | 0;","arg_count":1}

@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_bd22eda5ec53d6777bf2959f246ff36ad471504d","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof DOMRect) | 0;","arg_count":1}

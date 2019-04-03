@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_fe3cb1378ede0d4fa564c8471d4cb58458adef5d","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof MouseEvent) | 0;","arg_count":1}

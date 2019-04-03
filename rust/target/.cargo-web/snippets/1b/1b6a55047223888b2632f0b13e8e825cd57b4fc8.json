@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_d2e4181d99d09b8dcdaf227704c44b7be437abd4","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Event && o.type === \"resize\") | 0;","arg_count":1}

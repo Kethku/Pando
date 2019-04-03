@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_7c664dd1f3243e61ec18f7d1638e34226ba687be","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof MouseEvent && o.type === \"mouseover\") | 0;","arg_count":1}

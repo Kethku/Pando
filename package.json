@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "babel-polyfill": "^6.26.0",
+    "file-saver": "^2.0.1",
+    "viz.js": "^2.1.2"
+  },
+  "devDependencies": {
+    "parcel-plugin-cargo-web": "^0.3.1"
+  }
+}

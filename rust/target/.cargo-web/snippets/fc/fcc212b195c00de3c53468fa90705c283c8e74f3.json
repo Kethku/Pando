@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_b5279855d56d8dbb2124ea9f036133d0f76408de","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof FocusEvent && o.type === \"focus\") | 0;","arg_count":1}

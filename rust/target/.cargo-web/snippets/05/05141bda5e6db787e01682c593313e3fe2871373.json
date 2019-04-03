@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_c865684a8d64bcab15d5b5430739098bc1a95fad","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof DataTransferItemList) | 0;","arg_count":1}

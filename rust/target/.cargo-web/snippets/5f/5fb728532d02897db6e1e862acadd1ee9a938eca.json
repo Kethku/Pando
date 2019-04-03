@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_53e1733171846cd3cdb5ae4eebb597c29d388696","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof GamepadEvent && o.type === \"gamepadconnected\") | 0;","arg_count":1}

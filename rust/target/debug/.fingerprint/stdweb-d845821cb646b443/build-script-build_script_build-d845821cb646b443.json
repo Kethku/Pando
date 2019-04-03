@@ -1,0 +1,1 @@
+{"rustc":8630454932667269832,"features":"[\"default\", \"serde\", \"serde_json\"]","target":4944179213620976468,"profile":11870183705523825133,"path":8233729584731654828,"deps":[["rustc_version v0.2.3","rustc_version",5088227756337817315]],"local":[{"Precalculated":"0.4.15"}],"rustflags":[],"edition":"Edition2015"}

@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_613b0f25af124f7a157482b1898be5a8759ccb97","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof PointerEvent && o.type === \"pointerover\") | 0;","arg_count":1}

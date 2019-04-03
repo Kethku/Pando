@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_ef719d022f6ae35982e5e7fc35ee6b74fae51a22","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof MessageEvent && o.type === \"message\") | 0;","arg_count":1}

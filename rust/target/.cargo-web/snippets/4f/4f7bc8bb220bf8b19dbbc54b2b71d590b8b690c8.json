@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_76c1ee6b34a4c89a8e2052fb46de66eee5144608","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof KeyboardEvent && o.type === \"keyup\") | 0;","arg_count":1}

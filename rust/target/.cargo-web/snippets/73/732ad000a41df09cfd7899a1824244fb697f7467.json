@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_5bb66c908be479fd49ceeb2e6b66e2f627aa0d4a","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof CanvasPattern) | 0;","arg_count":1}

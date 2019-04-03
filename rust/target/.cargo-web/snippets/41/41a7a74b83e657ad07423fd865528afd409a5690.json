@@ -1,0 +1,1 @@
+{"name":"__cargo_web_snippet_9ec985d2491e6c119d51840b9fcefc983296b2e8","code":"var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof TextMetrics) | 0;","arg_count":1}
