@@ -59,7 +59,7 @@ alt!(eof!() | nom::eol)));
 
 pub fn parse_pando(input: &str) -> Vec<Todo> {
     let input = input.trim();
-    if (input.is_empty()) {
+    if input.is_empty() {
         Vec::new()
     } else {
         let (_, todos) = many1!(CompleteStr(input), parse_todo).expect("Incorrect input file format");

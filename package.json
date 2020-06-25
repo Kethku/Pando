@@ -1,10 +1,17 @@
 {
+  "main": "main.js",
   "dependencies": {
     "babel-polyfill": "^6.26.0",
     "file-saver": "^2.0.1",
     "viz.js": "^2.1.2"
   },
   "devDependencies": {
-    "parcel-plugin-cargo-web": "^0.3.1"
+    "parcel-plugin-cargo-web": "^0.3.1",
+    "electron": "^9.0.5"
+  },
+  "scripts": {
+    "start": "electron .",
+    "build": "parcel build ./index.html --public-url . --target=electron",
+    "package": "electron-packager . Pando --overwrite"
   }
 }

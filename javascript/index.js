@@ -1,16 +1,20 @@
 import {compile, newTask, deleteTask, toggleDependency, progressTask} from "../Rust/Cargo.toml";
 import Viz from "viz.js";
 import { Module, render } from 'viz.js/full.render.js';
-import { saveAs } from 'file-saver';
 import "babel-polyfill";
+
+const { remote } = nodeRequire('electron');
 
 const viz = new Viz({ Module, render });
 
 let code = "";
 
-if (window.location.hash) {
-  code = window.localStorage.getItem(window.location.hash.substring(1)) || "";
+let remoteCode = remote.getGlobal("code");
+if (remoteCode) {
+  code = remoteCode;
 }
+
+console.log(code);
 
 let codeElement = document.createElement("pre");
 codeElement.textContent = code;
@@ -20,8 +24,9 @@ function updateCode(newCode) {
   renderGraph();
   codeElement.textContent = code;
 
-  if (window.location.hash) {
-    window.localStorage.setItem(window.location.hash.substring(1), code);
+  const save = remote.getGlobal("save");
+  if (save) {
+    save(code);
   }
 }
 
@@ -92,22 +97,10 @@ document.addEventListener("keydown", async function (e) {
   if (e.keyCode == 83 && e.ctrlKey) {
     e.preventDefault();
 
-    let fileName = "todo";
-    if (window.location.hash) {
-      fileName = window.location.hash.substring(1);
+    const saveAs = remote.getGlobal("saveAs");
+    if (saveAs) {
+      saveAs(code);
     }
-
-    let compileResult = compile(code);
-    if (compileResult.success) {
-      let svgText = (await viz.renderSVGElement(compileResult.dotCode)).outerHTML;
-      let imageBlob = new Blob([svgText], { type: "text/plain;charset=utf-8" });
-      let imageName = fileName + ".svg";
-      saveAs(imageBlob, imageName);
-    }
-
-    let codeBlob = new Blob([code], { type: "text/play;charset=utf-8" });
-    let codeName = fileName + ".pando";
-    saveAs(codeBlob, codeName);
   }
 });
 

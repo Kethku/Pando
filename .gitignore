@@ -1,3 +1,5 @@
 node_modules/
 .cache/
 rust/target/
+dist/
+Pando-win32-x64/
