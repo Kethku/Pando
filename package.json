@@ -7,7 +7,7 @@
   },
   "devDependencies": {
     "parcel-plugin-cargo-web": "^0.3.1",
-    "electron": "^9.0.5"
+    "electron": "^9.3.1"
   },
   "scripts": {
     "start": "electron .",
