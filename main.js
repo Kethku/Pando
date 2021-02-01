@@ -4,6 +4,7 @@ const fs = require('fs');
 let path = null;
 if (process.argv[1] && fs.existsSync(process.argv[1])) {
   path = process.argv[1];
+  console.log(path);
   global.code = fs.readFileSync(path, "utf8");
 }
 

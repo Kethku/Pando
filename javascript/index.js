@@ -1,4 +1,4 @@
-import {compile, newTask, deleteTask, toggleDependency, progressTask} from "../Rust/Cargo.toml";
+import {compile, newTask, deleteTask, toggleDependency, progressTask} from "../rust/Cargo.toml";
 import Viz from "viz.js";
 import { Module, render } from 'viz.js/full.render.js';
 import "babel-polyfill";
