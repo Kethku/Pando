@@ -3,6 +3,7 @@
   "dependencies": {
     "babel-polyfill": "^6.26.0",
     "file-saver": "^2.0.1",
+    "parcel-bundler": "^1.12.4",
     "viz.js": "^2.1.2"
   },
   "devDependencies": {
