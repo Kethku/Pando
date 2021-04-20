@@ -1,9 +1,0 @@
-[package]
-name = "pando"
-version = "0.1.0"
-edition = "2018"
-
-[dependencies]
-wry = "0.8.0"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
