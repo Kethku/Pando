@@ -1,29 +1,51 @@
-import React from 'react';
+import React, { MouseEvent, useState } from 'react';
 import * as ReactDOM from 'react-dom';
-import ReactFlow, { Background, BackgroundVariant, MiniMap, useStoreState } from 'react-flow-renderer';
+import ReactFlow, { Background, BackgroundVariant, MiniMap, OnLoadParams, useRef, useStoreState } from 'react-flow-renderer';
 
-const elements = [
-  { id: '1', type: 'input', data: { label: 'Node 1' }, position: { x: 250, y: 5 } },
-  // you can also pass a React Node as a label
-  { id: '2', data: { label: <div>Node 2</div> }, position: { x: 100, y: 100 } },
-  { id: 'e1-2', source: '1', target: '2', animated: true },
-];
+function useCounter(start: number) {
+  const [currentId, setId] = useState();
 
-const NodesDebugger = () => {
-  const nodes = useStoreState(state => state.nodes);
-  console.log(nodes);
-  return null;
+}
+
+const Todo = ({ data }) => {
 };
 
 const App = () => {
-  return <ReactFlow elements={elements}>
-    <Background
-      variant={BackgroundVariant.Dots}
-      gap={16}
-      size={1} />
-    <MiniMap />
-    <NodesDebugger />
-  </ReactFlow>;
+  const reactFlowWrapper = useRef(null);
+  const [flowInstance, setFlowInstance] = useState<OnLoadParams>(null);
+  const [elements, setElements] = useState([]);
+
+  const OnPaneClick = (event: MouseEvent<Element, globalThis.MouseEvent>) => {
+    event.preventDefault();
+
+    const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
+    const position = flowInstance.project({
+      x: event.clientX - reactFlowBounds.left,
+      y: event.clientY - reactFlowBounds.top,
+    });
+    const newNode = {
+      id: getId(),
+      type,
+      position,
+      data: { label: `${type} node` },
+    };
+
+    setElements((es) => es.concat(newNode));
+  };
+
+  return <div className="reactflow-wrapper" ref={reactFlowWrapper}>
+    <ReactFlow 
+      nodeTypes={{ todo: Todo }}
+      elements={elements}
+      onPaneClick={OnPaneClick}
+      onLoad={setFlowInstance}>
+      <Background
+        variant={BackgroundVariant.Dots}
+        gap={16}
+        size={1} />
+      <MiniMap />
+    </ReactFlow>
+  </div>;
 };
 
 let element = document.createElement("div");
