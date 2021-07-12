@@ -3,6 +3,7 @@ pub mod take_focus;
 pub mod on_enter;
 pub mod on_mouse_button_down;
 pub mod undo_root;
+pub mod handles_mouse;
 
 use std::fmt::Debug;
 
@@ -15,6 +16,7 @@ use take_focus::TakeFocus;
 use on_enter::OnEnter;
 use on_mouse_button_down::OnMouseButtonDown;
 use undo_root::{UndoRoot, RECORD_UNDO_STATE};
+use handles_mouse::HandlesMouse;
 
 pub trait DraggableWidgetExt<T, W> where T: Data + Positioned, W: Widget<T> {
     fn draggable(self, handle_mouse_events: bool) -> ControllerHost<W, DragController>;
@@ -34,6 +36,7 @@ pub trait PandoWidgetExt<T, W> where T: Data, W: Widget<T> {
     fn on_mouse_middle(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, OnMouseButtonDown<T>>;
     fn on_mouse_double(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, OnMouseButtonDown<T>>;
     fn undo_root(self) -> ControllerHost<W, UndoRoot<T>>;
+    fn handles_mouse(self) -> ControllerHost<W, HandlesMouse>;
 }
 
 impl<T: Data + Debug + Send + Serialize, W: Widget<T> + 'static> PandoWidgetExt<T, W> for W {
@@ -63,6 +66,10 @@ impl<T: Data + Debug + Send + Serialize, W: Widget<T> + 'static> PandoWidgetExt<
 
     fn undo_root(self) -> ControllerHost<W, UndoRoot<T>> {
         self.controller(UndoRoot::new())
+    }
+
+    fn handles_mouse(self) -> ControllerHost<W, HandlesMouse> {
+        self.controller(HandlesMouse { })
     }
 }
 

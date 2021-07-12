@@ -86,12 +86,13 @@ pub fn todo() -> impl Widget<TodoItem> {
         |status, _, _| {
             match status {
                 TodoStatus::Authoring => {
-                    TextBox::multiline().lens(TodoItem::name)
+                    TextBox::multiline().with_expand().lens(TodoItem::name)
                         .on_enter(|ctx, todo| {
                             todo.progress();
                             ctx.record_undo_state();
                         })
                         .take_focus()
+                        .handles_mouse()
                         .boxed()
                 },
                 TodoStatus::Waiting => {

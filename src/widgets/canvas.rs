@@ -5,16 +5,11 @@ use druid::{
     Point, WidgetPod, Rect
 };
 use druid::im::Vector;
-use druid::piet::kurbo::Circle;
-use druid::theme;
 use druid::widget::ListIter;
 use druid::widget::prelude::*;
 
 use crate::controllers::draggable::Positioned;
 use super::pinboard::Pinnable;
-
-const BACKGROUND_GRID_SIZE: isize = 25;
-const BACKGROUND_CIRCLE_RADIUS: f64 = 1.0;
 
 // Widget which renders it's children on an infinite grid
 pub struct Canvas<C> {
@@ -97,7 +92,7 @@ impl<C: Data + Positioned + Pinnable> Widget<(Point, Vector<C>)> for Canvas<C> {
         }
     }
 
-    fn layout(&mut self, ctx: &mut LayoutCtx, _bc: &BoxConstraints, data: &(Point, Vector<C>), env: &Env) -> Size {
+    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &(Point, Vector<C>), env: &Env) -> Size {
         let (offset, data_list) = data;
 
         let mut new_child_positions = HashMap::new();
@@ -119,29 +114,11 @@ impl<C: Data + Positioned + Pinnable> Widget<(Point, Vector<C>)> for Canvas<C> {
         });
 
         self.child_positions = new_child_positions;
-        Size::new(f64::INFINITY, f64::INFINITY)
+        bc.max()
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &(Point, Vector<C>), env: &Env) {
-        let window = ctx.window();
-        let pixel_size = window.get_size();
-        let scale = window.get_scale().expect("Could not get window scale");
-        let size = Size::new(scale.px_to_dp_x(pixel_size.width), scale.px_to_dp_y(pixel_size.height));
-        let (offset, data_list) = data;
-
-        let rect = size.to_rect();
-        ctx.fill(rect, &env.get(theme::BACKGROUND_DARK));
-
-        for x in (-BACKGROUND_GRID_SIZE..(size.width.ceil() as isize + BACKGROUND_GRID_SIZE)).step_by(BACKGROUND_GRID_SIZE as usize) {
-            for y in (-BACKGROUND_GRID_SIZE..(size.height.ceil() as isize + BACKGROUND_GRID_SIZE)).step_by(BACKGROUND_GRID_SIZE as usize) {
-                let circle = Circle::new(
-                    (x as f64 + offset.x % BACKGROUND_GRID_SIZE as f64, 
-                     y as f64 + offset.y % BACKGROUND_GRID_SIZE as f64), 
-                    BACKGROUND_CIRCLE_RADIUS);
-                ctx.fill(circle, &env.get(theme::BORDER_LIGHT));
-            }
-        }
-
+        let (_, data_list) = data;
         let mut children = self.children.iter_mut();
         data_list.for_each(|child_data, _| {
             if let Some(child) = children.next() {

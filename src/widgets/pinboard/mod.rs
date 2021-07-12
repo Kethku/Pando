@@ -22,16 +22,20 @@ use crate::controllers::{
 
 pub const DEPENDENT_STATE_CHANGED: Selector<(String, Box<dyn Any>)> = Selector::new("PINBOARD_DEPENDENT_STATE_CHANGED");
 
-fn bez_points_to(rect: &Rect) -> (Point, Point) {
-    let to = Point::new(rect.center().x, rect.min_y());
-    let control = to + Vec2::new(0.0, -100.0);
-    (to, control)
+fn bez_to_point(rect: &Rect) -> Point {
+    Point::new(rect.center().x, rect.min_y())
 }
 
-fn bez_points_from(rect: &Rect) -> (Point, Point) {
-    let from = Point::new(rect.center().x, rect.max_y());
-    let control = from + Vec2::new(0.0, 100.0);
-    (from, control)
+fn bez_from_point(rect: &Rect) -> Point {
+    Point::new(rect.center().x, rect.max_y())
+}
+
+fn bez_from_to(from: Point, to: Point) -> CubicBez {
+    let control_dist = ((to.y - from.y) / 2.0).abs();
+    let from_control = from + Vec2::new(0.0, control_dist);
+    let to_control = to - Vec2::new(0.0, control_dist);
+
+    CubicBez::new(from, from_control, to_control, to)
 }
 
 fn all_dependencies<C: Data + Pinnable>(root: &C, children: &Vector<C>) -> Vector<String> {
@@ -216,35 +220,33 @@ impl<C: Data + Positioned + Pinnable> Widget<(Point, Vector<C>)> for PinBoard<C>
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &(Point, Vector<C>), env: &Env) {
-        self.canvas.paint(ctx, data, env);
         let canvas = self.canvas.widget();
-
         for child_data in data.1.iter() {
             let child_position = canvas.get_child_position(&child_data.get_id()).expect("Could not get child position");
-            let (to, control_2) = bez_points_to(child_position);
+            let to = bez_to_point(child_position);
             for dependency_id in child_data.get_dependencies().iter() {
                 let dependency_position = canvas.get_child_position(&dependency_id).expect("Could not get dependency position");
-                let (from, control_1) = bez_points_from(dependency_position);
+                let from = bez_from_point(dependency_position);
 
-                let path = CubicBez::new(from, control_1, control_2, to);
-                ctx.stroke(path, &env.get(theme::BORDER_LIGHT), 2.0);
+                let bez = bez_from_to(from, to);
+                ctx.stroke(bez, &env.get(theme::BORDER_LIGHT), 2.0);
             }
         }
 
         if let Some(linking_id) = &self.linking_todo {
             let linking_position = canvas.get_child_position(&linking_id).expect("Could not get dependency position");
-            let (from, control_1) = bez_points_from(linking_position);
+            let from = bez_from_point(linking_position);
 
-            let (to, control_2) = if let Some(todo_position_under_mouse) = self.todo_position_under_mouse {
-                bez_points_to(&todo_position_under_mouse)
+            let to = if let Some(todo_position_under_mouse) = self.todo_position_under_mouse {
+                bez_to_point(&todo_position_under_mouse)
             } else {
-                let to = self.mouse_position;
-                let control_2 = to + Vec2::new(0.0, -100.0);
-                (to, control_2)
+                self.mouse_position
             };
 
-            let path = CubicBez::new(from, control_1, control_2, to);
-            ctx.stroke(path, &env.get(theme::BORDER_DARK), 2.0);
+            let bez = bez_from_to(from, to);
+            ctx.stroke(bez, &env.get(theme::BORDER_DARK), 2.0);
         }
+
+        self.canvas.paint(ctx, data, env);
     }
 }
