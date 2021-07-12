@@ -1,87 +1,26 @@
-use std::fmt::Debug;
+mod pinnable;
+mod on_dependent_changed;
+mod pinnable_widget_ext;
+
 use std::any::Any;
 
 use druid::{
-    Command, Point, WidgetPod, Selector, Target, RenderContext, Color, Vec2, theme, Rect
+    Command, Point, WidgetPod, Selector, Target, RenderContext, Vec2, theme, Rect
 };
 use druid::im::Vector;
 use druid::kurbo::CubicBez;
 use druid::widget::*;
 use druid::widget::prelude::*;
 
-use crate::canvas::Canvas;
-use crate::draggable::Positioned;
+pub use pinnable::Pinnable;
+pub use pinnable_widget_ext::PinnableWidgetExt;
+use super::canvas::Canvas;
+use crate::controllers::{
+    RecordUndoStateExt,
+    draggable::Positioned
+};
 
-pub const UNPIN: Selector<String> = Selector::new("PINBOARD_UNPIN");
-pub const LINKING: Selector<String> = Selector::new("PINBOARD_LINKING");
 pub const DEPENDENT_STATE_CHANGED: Selector<(String, Box<dyn Any>)> = Selector::new("PINBOARD_DEPENDENT_STATE_CHANGED");
-
-pub trait Pinnable {
-    fn get_id(&self) -> String;
-
-    fn get_dependencies(&self) -> Vector<String> {
-        // For default, assume no dependencies
-        Vector::new()
-    }
-
-    fn toggle_dependency(&mut self, _dependency_id: &String) {
-        // For default, don't do anything
-    }
-}
-
-impl<T: Debug> Pinnable for T {
-    fn get_id(&self) -> String {
-        format!("{:?}", self).to_owned()
-    }
-}
-
-pub struct UnpinController;
-
-impl<T: Pinnable, W: Widget<T>> Controller<T, W> for UnpinController {
-    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
-        child.event(ctx, event, data, env);
-
-        if ctx.is_handled() {
-            return;
-        }
-
-        if let Event::MouseDown(mouse_event) = event {
-            if mouse_event.button.is_right() {
-                ctx.submit_command(Command::new(UNPIN, data.get_id(), Target::Auto));
-            }
-        }
-    }
-}
-
-pub struct OnDependentStateChanged<T> {
-    callback: Box<dyn Fn(&mut EventCtx, &mut T, &T) -> ()>
-}
-
-impl<T: Data + Pinnable> OnDependentStateChanged<T> {
-    pub fn new(callback: impl Fn(&mut EventCtx, &mut T, &T) -> () + 'static) -> Self {
-        Self {
-            callback: Box::new(callback)
-        }
-    }
-}
-
-impl<T: Pinnable + 'static, W: Widget<T>> Controller<T, W> for OnDependentStateChanged<T> {
-    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
-        if let Event::Command(command) = event {
-            if let Some((target_id, command_data)) = command.get(DEPENDENT_STATE_CHANGED) {
-                if &data.get_id() == target_id {
-                    if let Some(command_data) = command_data.downcast_ref::<T>() {
-                        (self.callback)(ctx, data, command_data)
-                    } else {
-                        println!("COULD NOT CAST DEPENDENT STATE");
-                    }
-                }
-            }
-        }
-
-        child.event(ctx, event, data, env);
-    }
-}
 
 fn bez_points_to(rect: &Rect) -> (Point, Point) {
     let to = Point::new(rect.center().x, rect.min_y());
@@ -157,8 +96,22 @@ impl<C: Data + Positioned + Pinnable> Widget<(Point, Vector<C>)> for PinBoard<C>
 
         match ev {
             Event::MouseDown(mouse_event) => {
-                if mouse_event.button.is_left() && mouse_event.count == 1 {
-                    self.mouse_down_position = Some(mouse_event.pos);
+                if mouse_event.count == 1 {
+                    if mouse_event.button.is_left() {
+                        self.mouse_down_position = Some(mouse_event.pos);
+                    } else if mouse_event.button.is_middle() {
+                        if let Some(todo_position_under_mouse) = self.todo_position_under_mouse {
+                            let (offset, child_data_vector) = data;
+                            // Find the todo under the mouse and toggle it's dependency
+                            let pin_under_mouse = child_data_vector
+                                .iter_mut()
+                                .find(|todo| todo.get_position() == todo_position_under_mouse.origin() - offset.to_vec2());
+
+                            if let Some(pin_under_mouse) = pin_under_mouse {
+                                self.linking_todo = Some(pin_under_mouse.get_id())
+                            }
+                        }
+                    }
                 }
             },
             Event::MouseMove(mouse_event) => {
@@ -186,16 +139,15 @@ impl<C: Data + Positioned + Pinnable> Widget<(Point, Vector<C>)> for PinBoard<C>
                         if let Some(linking_id) = &self.linking_todo {
                             if let Some(top_most_position) = &self.todo_position_under_mouse {
                                 // Find the todo under the mouse and toggle it's dependency
-                                let todo_under_mouse = child_data_vector
+                                let pin_under_mouse = child_data_vector
                                     .iter_mut()
                                     .find(|todo| todo.get_position() == top_most_position.origin() - offset.to_vec2());
 
-                                if let Some(todo_under_mouse) = todo_under_mouse {
-                                    todo_under_mouse.toggle_dependency(linking_id);
+                                if let Some(pin_under_mouse) = pin_under_mouse {
+                                    pin_under_mouse.toggle_dependency(linking_id);
+                                    ctx.record_undo_state();
                                 }
                             } else {
-                                // didn't drop on a todo. Create a new todo dependent on the above
-                                // value.
                                 let offset_position = mouse_event.pos - offset.to_vec2();
                                 let mut new_pin = (self.new_pin)(offset_position);
                                 new_pin.toggle_dependency(linking_id);
@@ -204,20 +156,28 @@ impl<C: Data + Positioned + Pinnable> Widget<(Point, Vector<C>)> for PinBoard<C>
 
                             self.linking_todo = None;
                         }
-                    }
-                }
-            },
-            Event::Command(command) => {
-                if let Some(id_to_unpin) = command.get(UNPIN) {
-                    let (_, child_data_vector) = data;
-                    let dependent_ids = direct_dependents(id_to_unpin, child_data_vector);
-                    child_data_vector.retain(|child_data| child_data.get_id() != *id_to_unpin);
+                    } else if mouse_event.button.is_right() {
+                        if let Some(top_most_position) = &self.todo_position_under_mouse {
+                            // Find the todo under the mouse and delete it
+                            let pin_under_mouse = child_data_vector
+                                .iter_mut()
+                                .find(|todo| todo.get_position() == top_most_position.origin() - offset.to_vec2());
 
-                    for dependent in child_data_vector.iter_mut().filter(|child| dependent_ids.contains(&child.get_id())) {
-                        dependent.toggle_dependency(id_to_unpin);
+                            if let Some(pin_under_mouse) = pin_under_mouse {
+                                let id_to_unpin = pin_under_mouse.get_id();
+
+                                let (_, child_data_vector) = data;
+                                let dependent_ids = direct_dependents(&id_to_unpin, child_data_vector);
+                                child_data_vector.retain(|child_data| child_data.get_id() != *id_to_unpin);
+
+                                for dependent in child_data_vector.iter_mut().filter(|child| dependent_ids.contains(&child.get_id())) {
+                                    dependent.toggle_dependency(&id_to_unpin);
+                                }
+                                ctx.record_undo_state();
+                            }
+
+                        }
                     }
-                } else if let Some(id_to_link) = command.get(LINKING) {
-                    self.linking_todo = Some(id_to_link.clone());
                 }
             },
             _ => {}

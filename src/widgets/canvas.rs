@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use druid::{
-    Color, Point, WidgetPod, Rect
+    Point, WidgetPod, Rect
 };
 use druid::im::Vector;
 use druid::piet::kurbo::Circle;
@@ -10,8 +10,8 @@ use druid::theme;
 use druid::widget::ListIter;
 use druid::widget::prelude::*;
 
-use crate::draggable::Positioned;
-use crate::pinboard::Pinnable;
+use crate::controllers::draggable::Positioned;
+use super::pinboard::Pinnable;
 
 const BACKGROUND_GRID_SIZE: isize = 25;
 const BACKGROUND_CIRCLE_RADIUS: f64 = 1.0;

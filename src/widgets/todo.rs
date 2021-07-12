@@ -1,13 +1,18 @@
-use druid::{Command, Data, Lens, Point, Insets, Target, Widget, WidgetExt};
+use druid::{Data, Lens, Insets, Point, Widget, WidgetExt};
 use druid::im::Vector;
 use druid::theme;
 use druid::widget::*;
+use serde::{Serialize, Deserialize};
 
-use crate::draggable::{DragController, Positioned};
-use crate::pinboard::{Pinnable, UnpinController, OnDependentStateChanged, LINKING};
-use crate::utils::{TakeFocus, OnEnter, OnMouseButtonDown};
+use super::pinboard::{Pinnable, PinnableWidgetExt};
+use crate::controllers::{
+    DraggableWidgetExt,
+    PandoWidgetExt,
+    RecordUndoStateExt,
+    draggable::Positioned
+};
 
-#[derive(Clone, Data, PartialEq)]
+#[derive(Clone, Data, Debug, PartialEq, Serialize, Deserialize)]
 pub enum TodoStatus {
     Authoring,
     Waiting,
@@ -15,7 +20,7 @@ pub enum TodoStatus {
     Done,
 }
 
-#[derive(Clone, Data, Lens, PartialEq)]
+#[derive(Clone, Data, Debug, Lens, PartialEq, Serialize, Deserialize)]
 pub struct TodoItem {
     position: Point,
     name: String,
@@ -82,8 +87,11 @@ pub fn todo() -> impl Widget<TodoItem> {
             match status {
                 TodoStatus::Authoring => {
                     TextBox::multiline().lens(TodoItem::name)
-                        .controller(OnEnter::<TodoItem>::new(|todo| todo.progress()))
-                        .controller(TakeFocus::new())
+                        .on_enter(|ctx, todo| {
+                            todo.progress();
+                            ctx.record_undo_state();
+                        })
+                        .take_focus()
                         .boxed()
                 },
                 TodoStatus::Waiting => {
@@ -110,17 +118,15 @@ pub fn todo() -> impl Widget<TodoItem> {
         .background(theme::BACKGROUND_LIGHT)
         .rounded(theme::BUTTON_BORDER_RADIUS)
         .border(theme::BORDER_LIGHT, theme::BUTTON_BORDER_WIDTH)
-        .controller(DragController::new(true))
-        .controller(UnpinController {})
-        .controller(OnMouseButtonDown::<TodoItem>::left(
-                |_, todo| todo.progress()).with_double_click())
-        .controller(OnMouseButtonDown::<TodoItem>::middle(
-                |ctx, todo| ctx.submit_command(Command::new(LINKING, todo.get_id(), Target::Auto))))
-        .controller(OnDependentStateChanged::<TodoItem>::new(
-                |_, todo, changed_todo| {
+        .draggable(true)
+        .on_mouse_double(|ctx, todo| {
+            todo.progress();
+            ctx.record_undo_state();
+        })
+        .on_dependent_changed(|_, todo, changed_todo| {
                     match changed_todo.status {
                         TodoStatus::Done => todo.status = TodoStatus::Done,
                         _ => {}
                     }
-                }))
+                })
 }
