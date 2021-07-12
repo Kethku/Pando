@@ -12,12 +12,13 @@ use widgets::{
     todo::{todo, TodoItem}
 };
 use controllers::*;
+use save::read_or;
 
 fn main() {
     let window = WindowDesc::new(
-        PinBoard::new(|position| TodoItem::new(position), || todo()).draggable(true).undo_root()
+        || PinBoard::new(|position| TodoItem::new(position), || todo()).draggable(true).undo_root()
     ).title(LocalizedString::new("Pando"));
     AppLauncher::with_window(window)
-        .launch((Point::ZERO, vector![]))
+        .launch(read_or((Point::ZERO, vector![])))
         .expect("Launch Failed");
 }

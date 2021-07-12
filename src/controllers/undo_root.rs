@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use std::thread;
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, Sender};
 
 use druid::{Data, EventCtx, Event, Env, LifeCycle, LifeCycleCtx, HotKey, Selector, SysMods, Widget};
 use druid::im::Vector;
@@ -13,6 +13,7 @@ pub const RECORD_UNDO_STATE: Selector<()> = Selector::new("RECORD_UNDO_STATE");
 
 pub struct UndoRoot<T> {
     history: Vector<T>,
+    tx: Sender<T>
 }
 
 impl<T: Data + Send + Serialize> UndoRoot<T> {
@@ -26,7 +27,8 @@ impl<T: Data + Send + Serialize> UndoRoot<T> {
         });
 
         Self {
-            history: Vector::new()
+            history: Vector::new(),
+            tx 
         }
     }
 }
@@ -57,6 +59,7 @@ impl<T: Data + Debug, W: Widget<T>> Controller<T, W> for UndoRoot<T> {
                     ctx.request_layout();
                     ctx.request_update();
                     ctx.request_paint();
+                    self.tx.send(data.clone()).expect("Could not send state to save system");
                 }
             },
             _ => {}
