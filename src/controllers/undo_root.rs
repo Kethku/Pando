@@ -41,7 +41,7 @@ impl<T: Data + Debug, W: Widget<T>> Controller<T, W> for UndoRoot<T> {
             return;
         }
 
-        let undo_hotkey = HotKey::new(SysMods::None, "u");
+        let undo_hotkey = HotKey::new(SysMods::Cmd, "z");
 
         match event {
             Event::KeyDown(key_event) => {
