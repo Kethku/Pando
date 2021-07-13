@@ -20,7 +20,7 @@ use crate::controllers::{
     draggable::Positioned
 };
 
-pub const DEPENDENT_STATE_CHANGED: Selector<(String, Box<dyn Any>)> = Selector::new("PINBOARD_DEPENDENT_STATE_CHANGED");
+pub const DEPENDENT_STATE_CHANGED: Selector<(u64, Box<dyn Any>)> = Selector::new("PINBOARD_DEPENDENT_STATE_CHANGED");
 
 fn bez_to_point(rect: &Rect) -> Point {
     Point::new(rect.center().x, rect.min_y())
@@ -38,7 +38,7 @@ fn bez_from_to(from: Point, to: Point) -> CubicBez {
     CubicBez::new(from, from_control, to_control, to)
 }
 
-fn all_dependencies<C: Data + Pinnable>(root: &C, children: &Vector<C>) -> Vector<String> {
+fn all_dependencies<C: Data + Pinnable>(root: &C, children: &Vector<C>) -> Vector<u64> {
     let dependency_ids = root.get_dependencies();
 
     let mut results = dependency_ids.clone();
@@ -50,10 +50,10 @@ fn all_dependencies<C: Data + Pinnable>(root: &C, children: &Vector<C>) -> Vecto
     results
 }
 
-fn direct_dependents<C: Data + Pinnable>(root_id: &String, children: &Vector<C>) -> Vector<String> {
+fn direct_dependents<C: Data + Pinnable>(root_id: u64, children: &Vector<C>) -> Vector<u64> {
     let mut result = Vector::new();
     for child in children.iter() {
-        if child.get_dependencies().contains(root_id) {
+        if child.get_dependencies().contains(&root_id) {
             result.push_back(child.get_id())
         }
     }
@@ -61,24 +61,23 @@ fn direct_dependents<C: Data + Pinnable>(root_id: &String, children: &Vector<C>)
 }
 
 pub struct PinBoard<C> {
-    new_pin: Box<dyn Fn(Point) -> C>,
     canvas: WidgetPod<(Point, Vector<C>), Canvas<C>>,
 
     mouse_down_position: Option<Point>,
 
-    linking_todo: Option<String>,
+    linking_todo: Option<u64>,
     mouse_position: Point,
     todo_position_under_mouse: Option<Rect>,
+
+    current_pin_id: u64,
 }
 
-impl<C: Data + Positioned + Pinnable> PinBoard<C> {
+impl<C: Data + Pinnable> PinBoard<C> {
     pub fn new<CW: Widget<C> + 'static>(
-        new_pin: impl Fn(Point) -> C + 'static,
         new_widget: impl Fn() -> CW + 'static,
     ) -> PinBoard<C> {
         let canvas = Canvas::new(new_widget);
         PinBoard {
-            new_pin: Box::new(new_pin),
             canvas: WidgetPod::new(canvas),
 
             mouse_down_position: None,
@@ -86,7 +85,31 @@ impl<C: Data + Positioned + Pinnable> PinBoard<C> {
             linking_todo: None,
             mouse_position: Point::ZERO,
             todo_position_under_mouse: None,
+
+            current_pin_id: 0,
         }
+    }
+
+    fn new_pin(&mut self, position: Point, data: &(Point, Vector<C>)) -> C {
+        let (offset, _) = data;
+
+        let offset_position = (position.to_vec2() - offset.to_vec2()).to_point();
+        let pin_id = self.current_pin_id;
+        self.current_pin_id += 1;
+        C::new(offset_position, pin_id)
+    } 
+
+    fn add_pin(&mut self, position: Point, data: &mut(Point, Vector<C>)) {
+        let new_pin = self.new_pin(position, data);
+        let (_, child_data_vector) = data;
+        child_data_vector.push_back(new_pin);
+    }
+
+    fn add_dependent_pin(&mut self, position: Point, data: &mut(Point, Vector<C>), dependency: &u64) {
+        let mut new_pin = self.new_pin(position, data);
+        new_pin.toggle_dependency(&dependency);
+        let (_, child_data_vector) = data;
+        child_data_vector.push_back(new_pin);
     }
 }
 
@@ -134,34 +157,31 @@ impl<C: Data + Positioned + Pinnable> Widget<(Point, Vector<C>)> for PinBoard<C>
             },
             Event::MouseUp(mouse_event) => {
                 if let Some(mouse_down_position) = self.mouse_down_position {
-                    let (offset, child_data_vector) = data;
                     if mouse_event.button.is_left() && mouse_event.pos == mouse_down_position {
-                        let offset_position = (mouse_down_position.to_vec2() - offset.to_vec2()).to_point();
-                        let new_child_data = (self.new_pin)(offset_position);
-                        child_data_vector.push_back(new_child_data);
+                        self.add_pin(mouse_down_position, data);
                     } else if mouse_event.button.is_middle() {
-                        if let Some(linking_id) = &self.linking_todo {
+                        if let Some(linking_id) = self.linking_todo {
                             if let Some(top_most_position) = &self.todo_position_under_mouse {
+                                let (offset, child_data_vector) = data;
+
                                 // Find the todo under the mouse and toggle it's dependency
                                 let pin_under_mouse = child_data_vector
                                     .iter_mut()
                                     .find(|todo| todo.get_position() == top_most_position.origin() - offset.to_vec2());
 
                                 if let Some(pin_under_mouse) = pin_under_mouse {
-                                    pin_under_mouse.toggle_dependency(linking_id);
+                                    pin_under_mouse.toggle_dependency(&linking_id);
                                     ctx.record_undo_state();
                                 }
                             } else {
-                                let offset_position = mouse_event.pos - offset.to_vec2();
-                                let mut new_pin = (self.new_pin)(offset_position);
-                                new_pin.toggle_dependency(linking_id);
-                                child_data_vector.push_back(new_pin);
+                                self.add_dependent_pin(mouse_event.pos, data, &linking_id);
                             }
 
                             self.linking_todo = None;
                         }
                     } else if mouse_event.button.is_right() {
                         if let Some(top_most_position) = &self.todo_position_under_mouse {
+                            let (offset, child_data_vector) = data;
                             // Find the todo under the mouse and delete it
                             let pin_under_mouse = child_data_vector
                                 .iter_mut()
@@ -170,9 +190,8 @@ impl<C: Data + Positioned + Pinnable> Widget<(Point, Vector<C>)> for PinBoard<C>
                             if let Some(pin_under_mouse) = pin_under_mouse {
                                 let id_to_unpin = pin_under_mouse.get_id();
 
-                                let (_, child_data_vector) = data;
-                                let dependent_ids = direct_dependents(&id_to_unpin, child_data_vector);
-                                child_data_vector.retain(|child_data| child_data.get_id() != *id_to_unpin);
+                                let dependent_ids = direct_dependents(id_to_unpin, child_data_vector);
+                                child_data_vector.retain(|child_data| child_data.get_id() != id_to_unpin);
 
                                 for dependent in child_data_vector.iter_mut().filter(|child| dependent_ids.contains(&child.get_id())) {
                                     dependent.toggle_dependency(&id_to_unpin);

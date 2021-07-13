@@ -1,14 +1,19 @@
+use druid::Point;
 use druid::im::Vector;
 
-pub trait Pinnable {
-    fn get_id(&self) -> String;
+use crate::controllers::draggable::Positioned;
 
-    fn get_dependencies(&self) -> Vector<String> {
+pub trait Pinnable : Positioned {
+    fn new(position: Point, id: u64) -> Self;
+
+    fn get_id(&self) -> u64;
+
+    fn get_dependencies(&self) -> Vector<u64> {
         // For default, assume no dependencies
         Vector::new()
     }
 
-    fn toggle_dependency(&mut self, _dependency_id: &String) {
+    fn toggle_dependency(&mut self, _dependency_id: &u64) {
         // For default, don't do anything
     }
 }

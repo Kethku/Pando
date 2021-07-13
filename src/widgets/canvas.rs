@@ -15,7 +15,7 @@ use super::pinboard::Pinnable;
 pub struct Canvas<C> {
     new_widget_closure: Box<dyn Fn() -> Box<dyn Widget<C>>>,
     children: Vec<WidgetPod<C, Box<dyn Widget<C>>>>,
-    child_positions: HashMap<String, Rect>,
+    child_positions: HashMap<u64, Rect>,
 }
 
 impl<C: Data + Positioned + Pinnable> Canvas<C> {
@@ -42,7 +42,7 @@ impl<C: Data + Positioned + Pinnable> Canvas<C> {
         len != data.data_len()
     }
 
-    pub fn get_child_position(&self, id: &String) -> Option<&Rect> {
+    pub fn get_child_position(&self, id: &u64) -> Option<&Rect> {
         self.child_positions.get(id)
     }
 }

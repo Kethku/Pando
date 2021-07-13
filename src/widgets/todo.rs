@@ -22,22 +22,14 @@ pub enum TodoStatus {
 
 #[derive(Clone, Data, Debug, Lens, PartialEq, Serialize, Deserialize)]
 pub struct TodoItem {
+    id: u64,
     position: Point,
     name: String,
     status: TodoStatus,
-    dependencies: Vector<String>,
+    dependencies: Vector<u64>,
 }
 
 impl TodoItem {
-    pub fn new(position: Point) -> Self {
-        Self {
-            position,
-            name: "".to_owned(),
-            status: TodoStatus::Authoring,
-            dependencies: Vector::new(),
-        }
-    }
-
     pub fn progress(&mut self) {
         match self.status {
             TodoStatus::Authoring => self.status = TodoStatus::Waiting,
@@ -60,15 +52,25 @@ impl Positioned for TodoItem {
 }
 
 impl Pinnable for TodoItem {
-    fn get_id(&self) -> String {
-        self.name.clone()
+    fn new(position: Point, id: u64) -> Self {
+        Self {
+            id,
+            position,
+            name: "".to_owned(),
+            status: TodoStatus::Authoring,
+            dependencies: Vector::new(),
+        }
     }
 
-    fn get_dependencies(&self) -> Vector<String> {
+    fn get_id(&self) -> u64 {
+        self.id
+    }
+
+    fn get_dependencies(&self) -> Vector<u64> {
         self.dependencies.clone()
     }
 
-    fn toggle_dependency(&mut self, dependency_id: &String) {
+    fn toggle_dependency(&mut self, dependency_id: &u64) {
         if &self.get_id() == dependency_id {
             // Set dependency on self, swap to editing mode
             self.status = TodoStatus::Authoring;
