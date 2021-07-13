@@ -3,11 +3,12 @@ mod on_dependent_changed;
 mod pinnable_widget_ext;
 
 use std::any::Any;
+use std::fmt::Debug;
 
 use druid::{
     Command, Point, WidgetPod, Selector, Target, RenderContext, Vec2, theme, Rect
 };
-use druid::im::Vector;
+use druid::im::{Vector, HashSet};
 use druid::kurbo::CubicBez;
 use druid::widget::*;
 use druid::widget::prelude::*;
@@ -38,15 +39,31 @@ fn bez_from_to(from: Point, to: Point) -> CubicBez {
     CubicBez::new(from, from_control, to_control, to)
 }
 
-fn all_dependencies<C: Data + Pinnable>(root: &C, children: &Vector<C>) -> Vector<u64> {
-    let dependency_ids = root.get_dependencies();
+fn all_dependencies<C: Data + Pinnable>(root: &C, children: &Vector<C>) -> HashSet<u64> {
+    let mut results = HashSet::new();
+    for direct_dependency in root.get_dependencies() {
+        results.insert(direct_dependency);
+    }
 
-    let mut results = dependency_ids.clone();
-    for child in children.iter() {
-        if dependency_ids.contains(&child.get_id()) {
-            results.append(all_dependencies(child, children));
+    loop {
+        let mut new_dependency_found = false;
+
+        for child in children.iter() {
+            if results.contains(&child.get_id()) {
+                for new_dependency in child.get_dependencies() {
+                    if !results.contains(&new_dependency) {
+                        results.insert(new_dependency);
+                        new_dependency_found = true;
+                    }
+                }
+            }
+        }
+
+        if !new_dependency_found {
+            break;
         }
     }
+
     results
 }
 
@@ -68,8 +85,6 @@ pub struct PinBoard<C> {
     linking_todo: Option<u64>,
     mouse_position: Point,
     todo_position_under_mouse: Option<Rect>,
-
-    current_pin_id: u64,
 }
 
 impl<C: Data + Pinnable> PinBoard<C> {
@@ -85,17 +100,20 @@ impl<C: Data + Pinnable> PinBoard<C> {
             linking_todo: None,
             mouse_position: Point::ZERO,
             todo_position_under_mouse: None,
-
-            current_pin_id: 0,
         }
     }
 
     fn new_pin(&mut self, position: Point, data: &(Point, Vector<C>)) -> C {
-        let (offset, _) = data;
+        let (offset, children) = data;
+        let mut highest_pin_id = 0;
+        for child in children {
+            if child.get_id() > highest_pin_id {
+                highest_pin_id = child.get_id();
+            }
+        }
 
         let offset_position = (position.to_vec2() - offset.to_vec2()).to_point();
-        let pin_id = self.current_pin_id;
-        self.current_pin_id += 1;
+        let pin_id = highest_pin_id + 1;
         C::new(offset_position, pin_id)
     } 
 
@@ -113,7 +131,7 @@ impl<C: Data + Pinnable> PinBoard<C> {
     }
 }
 
-impl<C: Data + Positioned + Pinnable> Widget<(Point, Vector<C>)> for PinBoard<C> {
+impl<C: Data + Positioned + Pinnable + PartialEq + Debug> Widget<(Point, Vector<C>)> for PinBoard<C> {
     fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut (Point, Vector<C>), env: &Env) {
         self.canvas.event(ctx, ev, data, env);
 

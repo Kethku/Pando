@@ -130,6 +130,6 @@ pub fn todo() -> impl Widget<TodoItem> {
                     match changed_todo.status {
                         TodoStatus::Done => todo.status = TodoStatus::Done,
                         _ => {}
-                    }
+                    };
                 })
 }
