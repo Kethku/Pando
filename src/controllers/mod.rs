@@ -1,22 +1,22 @@
 pub mod draggable;
 pub mod take_focus;
-pub mod on_enter;
-pub mod on_mouse_button_down;
 pub mod undo_root;
 pub mod handles_mouse;
+pub mod event_handler;
+pub mod life_cycle_handler;
 
 use std::fmt::Debug;
 
-use druid::{Command, Data, EventCtx, Target, UpdateCtx, Widget, WidgetExt};
+use druid::{Command, Data, Event, EventCtx, LifeCycle, KbKey, Target, UpdateCtx, Widget, WidgetExt};
 use druid::widget::ControllerHost;
 use serde::Serialize;
 
 use draggable::{DragController, Positioned};
-use take_focus::TakeFocus;
-use on_enter::OnEnter;
-use on_mouse_button_down::OnMouseButtonDown;
-use undo_root::{UndoRoot, RECORD_UNDO_STATE};
+use event_handler::EventHandler;
 use handles_mouse::HandlesMouse;
+use life_cycle_handler::LifeCycleHandler;
+use take_focus::TakeFocus;
+use undo_root::{UndoRoot, RECORD_UNDO_STATE};
 
 pub trait DraggableWidgetExt<T, W> where T: Data + Positioned, W: Widget<T> {
     fn draggable(self, handle_mouse_events: bool) -> ControllerHost<W, DragController>;
@@ -29,39 +29,80 @@ impl<T: Data + Positioned, W: Widget<T> + 'static> DraggableWidgetExt<T, W> for 
 }
 
 pub trait PandoWidgetExt<T, W> where T: Data, W: Widget<T> {
+    fn on_blur(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, LifeCycleHandler<T>>;
+    fn on_enter(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
+    fn on_mouse_left(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
+    fn on_mouse_right(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
+    fn on_mouse_middle(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
+    fn on_mouse_double(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
     fn take_focus(self) -> ControllerHost<W, TakeFocus>;
-    fn on_enter(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, OnEnter<T>>;
-    fn on_mouse_left(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, OnMouseButtonDown<T>>;
-    fn on_mouse_right(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, OnMouseButtonDown<T>>;
-    fn on_mouse_middle(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, OnMouseButtonDown<T>>;
-    fn on_mouse_double(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, OnMouseButtonDown<T>>;
     fn undo_root(self) -> ControllerHost<W, UndoRoot<T>>;
     fn handles_mouse(self) -> ControllerHost<W, HandlesMouse>;
 }
 
 impl<T: Data + Debug + Send + Serialize, W: Widget<T> + 'static> PandoWidgetExt<T, W> for W {
+    fn on_blur(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, LifeCycleHandler<T>> {
+        self.controller(LifeCycleHandler::new(callback, |_, event| {
+            if let LifeCycle::FocusChanged(false) = event {
+                true
+            } else {
+                false
+            }
+        }))
+    }
+
+    fn on_enter(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>> {
+        self.controller(EventHandler::new(callback, true, true, |_, event| {
+            if let Event::KeyDown(key_event) = event {
+                key_event.key == KbKey::Enter && !key_event.mods.shift()
+            } else {
+                false
+            }
+        }))
+    }
+
+    fn on_mouse_left(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>> {
+        self.controller(EventHandler::new(callback, true, false, |_, event| {
+            if let Event::MouseDown(mouse_event) = event {
+                mouse_event.button.is_left() && mouse_event.count == 1
+            } else {
+                false
+            }
+        }))
+    }
+
+    fn on_mouse_right(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>> {
+        self.controller(EventHandler::new(callback, true, false, |_, event| {
+            if let Event::MouseDown(mouse_event) = event {
+                mouse_event.button.is_right() && mouse_event.count == 1
+            } else {
+                false
+            }
+        }))
+    }
+
+    fn on_mouse_middle(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>> {
+        self.controller(EventHandler::new(callback, true, false, |_, event| {
+            if let Event::MouseDown(mouse_event) = event {
+                mouse_event.button.is_middle() && mouse_event.count == 1
+            } else {
+                false
+            }
+        }))
+    }
+
+    fn on_mouse_double(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>> {
+        self.controller(EventHandler::new(callback, true, false, |_, event| {
+            if let Event::MouseDown(mouse_event) = event {
+                mouse_event.button.is_left() && mouse_event.count == 2
+            } else {
+                false
+            }
+        }))
+    }
+
     fn take_focus(self) -> ControllerHost<W, TakeFocus> {
         self.controller(TakeFocus::new())
-    }
-
-    fn on_enter(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, OnEnter<T>> {
-        self.controller(OnEnter::new(callback))
-    }
-
-    fn on_mouse_left(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, OnMouseButtonDown<T>> {
-        self.controller(OnMouseButtonDown::left(callback))
-    }
-
-    fn on_mouse_right(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, OnMouseButtonDown<T>> {
-        self.controller(OnMouseButtonDown::right(callback))
-    }
-
-    fn on_mouse_middle(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, OnMouseButtonDown<T>> {
-        self.controller(OnMouseButtonDown::middle(callback))
-    }
-
-    fn on_mouse_double(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, OnMouseButtonDown<T>> {
-        self.controller(OnMouseButtonDown::left(callback).with_double_click())
     }
 
     fn undo_root(self) -> ControllerHost<W, UndoRoot<T>> {

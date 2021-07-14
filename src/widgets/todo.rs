@@ -93,6 +93,10 @@ pub fn todo() -> impl Widget<TodoItem> {
                             todo.progress();
                             ctx.record_undo_state();
                         })
+                        .on_blur(|ctx, todo| {
+                            todo.progress();
+                            ctx.record_undo_state();
+                        })
                         .take_focus()
                         .handles_mouse()
                         .boxed()
