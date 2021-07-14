@@ -82,9 +82,9 @@ pub struct PinBoard<C> {
 
     mouse_down_position: Option<Point>,
 
-    linking_todo: Option<u64>,
+    linking_pin: Option<u64>,
     mouse_position: Point,
-    todo_position_under_mouse: Option<Rect>,
+    pin_under_mouse: Option<u64>,
 }
 
 impl<C: Data + Pinnable> PinBoard<C> {
@@ -97,9 +97,9 @@ impl<C: Data + Pinnable> PinBoard<C> {
 
             mouse_down_position: None,
 
-            linking_todo: None,
+            linking_pin: None,
             mouse_position: Point::ZERO,
-            todo_position_under_mouse: None,
+            pin_under_mouse: None,
         }
     }
 
@@ -145,15 +145,15 @@ impl<C: Data + Positioned + Pinnable + PartialEq + Debug> Widget<(Point, Vector<
                     if mouse_event.button.is_left() {
                         self.mouse_down_position = Some(mouse_event.pos);
                     } else if mouse_event.button.is_middle() {
-                        if let Some(todo_position_under_mouse) = self.todo_position_under_mouse {
-                            let (offset, child_data_vector) = data;
-                            // Find the todo under the mouse and toggle it's dependency
+                        if let Some(pin_under_mouse) = self.pin_under_mouse {
+                            let (_, child_data_vector) = data;
+                            // Find the pin under the mouse and toggle it's dependency
                             let pin_under_mouse = child_data_vector
                                 .iter_mut()
-                                .find(|todo| todo.get_position() == todo_position_under_mouse.origin() - offset.to_vec2());
+                                .find(|pin| pin.get_id() == pin_under_mouse);
 
                             if let Some(pin_under_mouse) = pin_under_mouse {
-                                self.linking_todo = Some(pin_under_mouse.get_id())
+                                self.linking_pin = Some(pin_under_mouse.get_id())
                             }
                         }
                     }
@@ -163,12 +163,12 @@ impl<C: Data + Positioned + Pinnable + PartialEq + Debug> Widget<(Point, Vector<
                 self.mouse_position = mouse_event.pos;
                 ctx.request_paint();
 
-                self.todo_position_under_mouse = None;
+                self.pin_under_mouse = None;
                 for child_data in data.1.iter() {
                     let child_id = child_data.get_id();
                     if let Some(child_location) = self.canvas.widget().get_child_position(&child_id) {
                         if child_location.contains(mouse_event.pos) {
-                            self.todo_position_under_mouse = Some(child_location.clone());
+                            self.pin_under_mouse = Some(child_id);
                         }
                     }
                 }
@@ -178,14 +178,14 @@ impl<C: Data + Positioned + Pinnable + PartialEq + Debug> Widget<(Point, Vector<
                     if mouse_event.button.is_left() && mouse_event.pos == mouse_down_position {
                         self.add_pin(mouse_down_position, data);
                     } else if mouse_event.button.is_middle() {
-                        if let Some(linking_id) = self.linking_todo {
-                            if let Some(top_most_position) = &self.todo_position_under_mouse {
-                                let (offset, child_data_vector) = data;
+                        if let Some(linking_id) = self.linking_pin {
+                            if let Some(pin_under_mouse) = &self.pin_under_mouse {
+                                let (_, child_data_vector) = data;
 
-                                // Find the todo under the mouse and toggle it's dependency
+                                // Find the pin under the mouse and toggle it's dependency
                                 let pin_under_mouse = child_data_vector
                                     .iter_mut()
-                                    .find(|todo| todo.get_position() == top_most_position.origin() - offset.to_vec2());
+                                    .find(|pin| &pin.get_id() == pin_under_mouse);
 
                                 if let Some(pin_under_mouse) = pin_under_mouse {
                                     pin_under_mouse.toggle_dependency(&linking_id);
@@ -195,15 +195,15 @@ impl<C: Data + Positioned + Pinnable + PartialEq + Debug> Widget<(Point, Vector<
                                 self.add_dependent_pin(mouse_event.pos, data, &linking_id);
                             }
 
-                            self.linking_todo = None;
+                            self.linking_pin = None;
                         }
                     } else if mouse_event.button.is_right() {
-                        if let Some(top_most_position) = &self.todo_position_under_mouse {
-                            let (offset, child_data_vector) = data;
-                            // Find the todo under the mouse and delete it
+                        if let Some(pin_under_mouse) = &self.pin_under_mouse {
+                            let (_, child_data_vector) = data;
+                            // Find the pin under the mouse and delete it
                             let pin_under_mouse = child_data_vector
                                 .iter_mut()
-                                .find(|todo| todo.get_position() == top_most_position.origin() - offset.to_vec2());
+                                .find(|pin| &pin.get_id() == pin_under_mouse);
 
                             if let Some(pin_under_mouse) = pin_under_mouse {
                                 let id_to_unpin = pin_under_mouse.get_id();
@@ -270,12 +270,12 @@ impl<C: Data + Positioned + Pinnable + PartialEq + Debug> Widget<(Point, Vector<
             }
         }
 
-        if let Some(linking_id) = &self.linking_todo {
+        if let Some(linking_id) = &self.linking_pin {
             let linking_position = canvas.get_child_position(&linking_id).expect("Could not get dependency position");
             let from = bez_from_point(linking_position);
 
-            let to = if let Some(todo_position_under_mouse) = self.todo_position_under_mouse {
-                bez_to_point(&todo_position_under_mouse)
+            let to = if let Some(pin_position_under_mouse) = self.pin_under_mouse.and_then(|id| canvas.get_child_position(&id)) {
+                bez_to_point(&pin_position_under_mouse)
             } else {
                 self.mouse_position
             };

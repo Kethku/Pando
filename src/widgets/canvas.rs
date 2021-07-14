@@ -2,13 +2,13 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use druid::{
-    Point, WidgetPod, Rect
+    Point, Rect, Vec2, WidgetPod, 
 };
 use druid::im::Vector;
 use druid::widget::ListIter;
 use druid::widget::prelude::*;
 
-use crate::controllers::draggable::Positioned;
+use crate::controllers::draggable::{Anchor, Positioned};
 use super::pinboard::Pinnable;
 
 // Widget which renders it's children on an infinite grid
@@ -108,7 +108,14 @@ impl<C: Data + Positioned + Pinnable> Widget<(Point, Vector<C>)> for Canvas<C> {
 
             let child_size = child.layout(ctx, &child_bc, child_data, env);
             let child_position = child_data.get_position();
-            let offset_position = Point::new(child_position.x + offset.x, child_position.y + offset.y);
+            let anchor_position = match child_data.get_anchor() {
+                Anchor::TopLeft => child_position,
+                Anchor::TopRight => child_position + Vec2::new(child_size.width, 0.0),
+                Anchor::BottomLeft => child_position + Vec2::new(0.0, child_size.height),
+                Anchor::BottomRight => child_position - child_size.to_vec2(),
+                Anchor::Center => child_position - (child_size.to_vec2() / 2.0),
+            };
+            let offset_position = anchor_position + offset.to_vec2();
             new_child_positions.insert(child_data.get_id(), Rect::from_origin_size(offset_position, child_size));
             child.set_origin(ctx, child_data, env, offset_position);
         });

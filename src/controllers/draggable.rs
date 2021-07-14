@@ -2,8 +2,20 @@ use druid::Point;
 use druid::widget::*;
 use druid::widget::prelude::*;
 
+#[derive(Clone, Debug)]
+pub enum Anchor {
+    TopLeft, 
+    TopRight,
+    BottomLeft,
+    BottomRight,
+    Center,
+}
+
 pub trait Positioned {
     fn get_position(&self) -> Point;
+    fn get_anchor(&self) -> Anchor {
+        Anchor::Center
+    }
     fn set_position(&mut self, new_position: Point);
 }
 
