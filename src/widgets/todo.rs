@@ -4,7 +4,7 @@ use druid::theme;
 use druid::widget::*;
 use serde::{Serialize, Deserialize};
 
-use super::pinboard::{Pinnable, PinnableWidgetExt};
+use super::pinboard::Pinnable;
 use crate::controllers::{
     DraggableWidgetExt,
     PandoWidgetExt,
@@ -27,6 +27,8 @@ pub struct TodoItem {
     name: String,
     status: TodoStatus,
     dependencies: Vector<u64>,
+    #[serde(default)]
+    highlighted: bool
 }
 
 impl TodoItem {
@@ -59,6 +61,7 @@ impl Pinnable for TodoItem {
             name: "".to_owned(),
             status: TodoStatus::Authoring,
             dependencies: Vector::new(),
+            highlighted: false
         }
     }
 
@@ -125,15 +128,18 @@ pub fn todo() -> impl Widget<TodoItem> {
         .background(theme::BACKGROUND_LIGHT)
         .rounded(theme::BUTTON_BORDER_RADIUS)
         .border(theme::BORDER_LIGHT, theme::BUTTON_BORDER_WIDTH)
+        .env_scope(|env, todo| {
+            if todo.highlighted {
+                env.set(theme::BORDER_LIGHT, env.get(theme::PRIMARY_LIGHT))
+            }
+        })
         .draggable(true)
         .on_mouse_double(|ctx, todo| {
             todo.progress();
             ctx.record_undo_state();
         })
-        .on_dependent_changed(|_, todo, changed_todo| {
-                    match changed_todo.status {
-                        TodoStatus::Done => todo.status = TodoStatus::Done,
-                        _ => {}
-                    };
-                })
+        .on_mouse_ctrl(|ctx, todo| {
+            todo.highlighted = !todo.highlighted;
+            ctx.record_undo_state();
+        })
 }

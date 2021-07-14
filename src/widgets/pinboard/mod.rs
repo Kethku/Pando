@@ -1,27 +1,21 @@
 mod pinnable;
-mod on_dependent_changed;
-mod pinnable_widget_ext;
 
-use std::any::Any;
 use std::fmt::Debug;
 
 use druid::{
-    Command, Point, WidgetPod, Selector, Target, RenderContext, Vec2, theme, Rect
+    Point, WidgetPod, RenderContext, Vec2, theme, Rect
 };
-use druid::im::{Vector, HashSet};
+use druid::im::Vector;
 use druid::kurbo::CubicBez;
 use druid::widget::*;
 use druid::widget::prelude::*;
 
 pub use pinnable::Pinnable;
-pub use pinnable_widget_ext::PinnableWidgetExt;
 use super::canvas::Canvas;
 use crate::controllers::{
     RecordUndoStateExt,
     draggable::Positioned
 };
-
-pub const DEPENDENT_STATE_CHANGED: Selector<(u64, Box<dyn Any>)> = Selector::new("PINBOARD_DEPENDENT_STATE_CHANGED");
 
 fn bez_to_point(rect: &Rect) -> Point {
     Point::new(rect.center().x, rect.min_y())
@@ -37,34 +31,6 @@ fn bez_from_to(from: Point, to: Point) -> CubicBez {
     let to_control = to - Vec2::new(0.0, control_dist);
 
     CubicBez::new(from, from_control, to_control, to)
-}
-
-fn all_dependencies<C: Data + Pinnable>(root: &C, children: &Vector<C>) -> HashSet<u64> {
-    let mut results = HashSet::new();
-    for direct_dependency in root.get_dependencies() {
-        results.insert(direct_dependency);
-    }
-
-    loop {
-        let mut new_dependency_found = false;
-
-        for child in children.iter() {
-            if results.contains(&child.get_id()) {
-                for new_dependency in child.get_dependencies() {
-                    if !results.contains(&new_dependency) {
-                        results.insert(new_dependency);
-                        new_dependency_found = true;
-                    }
-                }
-            }
-        }
-
-        if !new_dependency_found {
-            break;
-        }
-    }
-
-    results
 }
 
 fn direct_dependents<C: Data + Pinnable>(root_id: u64, children: &Vector<C>) -> Vector<u64> {
@@ -231,25 +197,6 @@ impl<C: Data + Positioned + Pinnable + PartialEq + Debug> Widget<(Point, Vector<
 
     fn update(&mut self, ctx: &mut UpdateCtx, old_data: &(Point, Vector<C>), data: &(Point, Vector<C>), env: &Env) {
         self.canvas.update(ctx, data, env);
-
-        let old_child_data_vector = &old_data.1;
-        let child_data_vector = &data.1;
-
-        for child_data in child_data_vector.iter() {
-            let child_data_id = child_data.get_id();
-            let old_child_data = old_child_data_vector.iter().find(|old_child_data| old_child_data.get_id() == child_data_id);
-
-            if let Some(old_child_data) = old_child_data {
-                if !old_child_data.same(child_data) {
-                    for dependency in all_dependencies(child_data, child_data_vector) {
-                        ctx.submit_command(Command::new(
-                                DEPENDENT_STATE_CHANGED, 
-                                (dependency, Box::new(child_data.clone())), 
-                                Target::Auto));
-                    }
-                }
-            }
-        }
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &(Point, Vector<C>), env: &Env) -> Size {

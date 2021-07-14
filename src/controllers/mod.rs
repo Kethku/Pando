@@ -35,6 +35,7 @@ pub trait PandoWidgetExt<T, W> where T: Data, W: Widget<T> {
     fn on_mouse_right(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
     fn on_mouse_middle(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
     fn on_mouse_double(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
+    fn on_mouse_ctrl(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
     fn take_focus(self) -> ControllerHost<W, TakeFocus>;
     fn undo_root(self) -> ControllerHost<W, UndoRoot<T>>;
     fn handles_mouse(self) -> ControllerHost<W, HandlesMouse>;
@@ -95,6 +96,16 @@ impl<T: Data + Debug + Send + Serialize, W: Widget<T> + 'static> PandoWidgetExt<
         self.controller(EventHandler::new(callback, true, false, |_, event| {
             if let Event::MouseDown(mouse_event) = event {
                 mouse_event.button.is_left() && mouse_event.count == 2
+            } else {
+                false
+            }
+        }))
+    }
+
+    fn on_mouse_ctrl(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>> {
+        self.controller(EventHandler::new(callback, true, false, |_, event| {
+            if let Event::MouseDown(mouse_event) = event {
+                mouse_event.button.is_left() && mouse_event.mods.ctrl() && mouse_event.count == 1
             } else {
                 false
             }
