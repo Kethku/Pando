@@ -195,7 +195,7 @@ impl<C: Data + Positioned + Pinnable + PartialEq + Debug> Widget<(Point, Vector<
         self.canvas.lifecycle(ctx, ev, data, env);
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &(Point, Vector<C>), data: &(Point, Vector<C>), env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &(Point, Vector<C>), data: &(Point, Vector<C>), env: &Env) {
         self.canvas.update(ctx, data, env);
     }
 

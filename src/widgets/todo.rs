@@ -61,7 +61,7 @@ impl Pinnable for TodoItem {
             name: "".to_owned(),
             status: TodoStatus::Authoring,
             dependencies: Vector::new(),
-            highlighted: false
+            highlighted: false,
         }
     }
 
