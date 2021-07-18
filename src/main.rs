@@ -10,7 +10,7 @@ use druid::{
 use druid::im::vector;
 
 use widgets::{
-    pinboard::PinBoard,
+    flow::Flow,
     todo::todo,
     dot_grid::dot_grid
 };
@@ -18,7 +18,7 @@ use controllers::*;
 use save::read_or;
 
 fn main() {
-    let window = WindowDesc::new(|| PinBoard::new(|| todo())
+    let window = WindowDesc::new(|| Flow::new(|| todo())
             .background(dot_grid())
             .draggable(true)
             .undo_root()

@@ -3,7 +3,7 @@ use druid::theme;
 use druid::widget::Painter;
 use druid::widget::prelude::*;
 
-use crate::controllers::draggable::Positioned;
+use super::canvas::Positioned;
 
 const BACKGROUND_GRID_SIZE: isize = 25;
 const BACKGROUND_CIRCLE_RADIUS: f64 = 1.0;

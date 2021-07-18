@@ -10,6 +10,7 @@ use serde::Serialize;
 use crate::save::save;
 
 pub const RECORD_UNDO_STATE: Selector<()> = Selector::new("RECORD_UNDO_STATE");
+pub const REPLACE_UNDO_STATE: Selector<()> = Selector::new("REPLACE_UNDO_STATE");
 
 pub struct UndoRoot<T> {
     history: Vector<T>,
@@ -55,6 +56,13 @@ impl<T: Data + Debug, W: Widget<T>> Controller<T, W> for UndoRoot<T> {
             },
             Event::Command(command) => {
                 if command.is(RECORD_UNDO_STATE) {
+                    self.history.push_back(data.clone());
+                    ctx.request_layout();
+                    ctx.request_update();
+                    ctx.request_paint();
+                    self.tx.send(data.clone()).expect("Could not send state to save system");
+                } else if command.is(REPLACE_UNDO_STATE) {
+                    self.history.pop_back();
                     self.history.push_back(data.clone());
                     ctx.request_layout();
                     ctx.request_update();

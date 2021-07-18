@@ -1,4 +1,5 @@
 pub mod canvas;
-pub mod pinboard;
+pub mod pin_board;
+pub mod flow;
 pub mod todo;
 pub mod dot_grid;

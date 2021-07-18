@@ -2,14 +2,46 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use druid::{
-    Point, Rect, Vec2, WidgetPod, 
+    Point, Rect, WidgetPod, 
 };
 use druid::im::Vector;
 use druid::widget::ListIter;
 use druid::widget::prelude::*;
 
-use crate::controllers::draggable::{Anchor, Positioned};
-use super::pinboard::Pinnable;
+pub trait Positioned {
+    fn get_position(&self) -> Point;
+    fn set_position(&mut self, new_position: Point);
+
+    fn get_top_left_position(&self, size: Size) -> Point {
+        let position = self.get_position();
+        position - (size.to_vec2() / 2.0)
+    }
+}
+
+impl Positioned for Point {
+    fn get_position(&self) -> Point {
+        *self
+    }
+
+    fn set_position(&mut self, new_position: Point) {
+        *self = new_position
+    }
+}
+
+impl<T> Positioned for (Point, T) {
+    fn get_position(&self) -> Point {
+        self.0
+    }
+
+    fn set_position(&mut self, new_position: Point) {
+        let (position, _) = self;
+        *position = new_position
+    }
+}
+
+pub trait Identifiable {
+    fn get_id(&self) -> u64;
+}
 
 // Widget which renders it's children on an infinite grid
 pub struct Canvas<C> {
@@ -18,7 +50,7 @@ pub struct Canvas<C> {
     child_positions: HashMap<u64, Rect>,
 }
 
-impl<C: Data + Positioned + Pinnable> Canvas<C> {
+impl<C: Data + Positioned + PartialEq> Canvas<C> {
     pub fn new<W: Widget<C> + 'static>(new_widget_closure: impl Fn() -> W + 'static) -> Self {
         Canvas {
             new_widget_closure: Box::new(move || Box::new(new_widget_closure())),
@@ -42,12 +74,12 @@ impl<C: Data + Positioned + Pinnable> Canvas<C> {
         len != data.data_len()
     }
 
-    pub fn get_child_position(&self, id: &u64) -> Option<&Rect> {
-        self.child_positions.get(id)
+    pub fn get_child_position(&self, child_id: &u64) -> Option<&Rect> {
+        self.child_positions.get(child_id)
     }
 }
 
-impl<C: Data + Positioned + Pinnable> Widget<(Point, Vector<C>)> for Canvas<C> {
+impl<C: Data + Positioned + Identifiable + PartialEq> Widget<(Point, Vector<C>)> for Canvas<C> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut (Point, Vector<C>), env: &Env) {
         let mut children = self.children.iter_mut();
 
@@ -107,15 +139,8 @@ impl<C: Data + Positioned + Pinnable> Widget<(Point, Vector<C>)> for Canvas<C> {
             };
 
             let child_size = child.layout(ctx, &child_bc, child_data, env);
-            let child_position = child_data.get_position();
-            let anchor_position = match child_data.get_anchor() {
-                Anchor::TopLeft => child_position,
-                Anchor::TopRight => child_position + Vec2::new(child_size.width, 0.0),
-                Anchor::BottomLeft => child_position + Vec2::new(0.0, child_size.height),
-                Anchor::BottomRight => child_position - child_size.to_vec2(),
-                Anchor::Center => child_position - (child_size.to_vec2() / 2.0),
-            };
-            let offset_position = anchor_position + offset.to_vec2();
+            let child_top_left = child_data.get_top_left_position(child_size);
+            let offset_position = child_top_left + offset.to_vec2();
             new_child_positions.insert(child_data.get_id(), Rect::from_origin_size(offset_position, child_size));
             child.set_origin(ctx, child_data, env, offset_position);
         });

@@ -4,12 +4,13 @@ use druid::theme;
 use druid::widget::*;
 use serde::{Serialize, Deserialize};
 
-use super::pinboard::Pinnable;
+use super::canvas::{Positioned, Identifiable};
+use super::pin_board::Pinnable;
+use super::flow::Flowable;
 use crate::controllers::{
     DraggableWidgetExt,
     PandoWidgetExt,
     RecordUndoStateExt,
-    draggable::Positioned
 };
 
 #[derive(Clone, Data, Debug, PartialEq, Serialize, Deserialize)]
@@ -53,6 +54,12 @@ impl Positioned for TodoItem {
     }
 }
 
+impl Identifiable for TodoItem {
+    fn get_id(&self) -> u64 {
+        self.id
+    }
+}
+
 impl Pinnable for TodoItem {
     fn new(position: Point, id: u64) -> Self {
         Self {
@@ -64,10 +71,9 @@ impl Pinnable for TodoItem {
             highlighted: false,
         }
     }
+}
 
-    fn get_id(&self) -> u64 {
-        self.id
-    }
+impl Flowable for TodoItem {
 
     fn get_dependencies(&self) -> Vector<u64> {
         self.dependencies.clone()

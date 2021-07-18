@@ -2,43 +2,7 @@ use druid::Point;
 use druid::widget::*;
 use druid::widget::prelude::*;
 
-#[derive(Clone, Debug)]
-pub enum Anchor {
-    TopLeft, 
-    TopRight,
-    BottomLeft,
-    BottomRight,
-    Center,
-}
-
-pub trait Positioned {
-    fn get_position(&self) -> Point;
-    fn get_anchor(&self) -> Anchor {
-        Anchor::Center
-    }
-    fn set_position(&mut self, new_position: Point);
-}
-
-impl Positioned for Point {
-    fn get_position(&self) -> Point {
-        *self
-    }
-
-    fn set_position(&mut self, new_position: Point) {
-        *self = new_position
-    }
-}
-
-impl<T> Positioned for (Point, T) {
-    fn get_position(&self) -> Point {
-        self.0
-    }
-
-    fn set_position(&mut self, new_position: Point) {
-        let (position, _) = self;
-        *position = new_position
-    }
-}
+use crate::widgets::canvas::Positioned;
 
 pub struct DragController {
     child_dragged_from: Option<Point>,
