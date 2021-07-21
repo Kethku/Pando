@@ -1,59 +1,103 @@
+use std::collections::HashMap;
 use std::fmt::Debug;
 
 use druid::{
-    Point, WidgetPod, RenderContext, Vec2, theme, Rect
+    Point, WidgetPod, RenderContext, Vec2, Selector
 };
-use druid::im::Vector;
+use druid::im::{HashSet, Vector};
 use druid::kurbo::CubicBez;
 use druid::widget::*;
 use druid::widget::prelude::*;
+use serde::{Serialize, Deserialize};
 
 use super::pin_board::{PinBoard, Pinnable};
 use crate::controllers::RecordUndoStateExt;
 
+pub const START_LINK: Selector<(u64, usize)> = Selector::new("START_LINK");
 
-pub trait Flowable : Pinnable {
-    fn get_dependencies(&self) -> Vector<u64> {
-        // For default, assume no dependencies
-        Vector::new()
-    }
-
-    fn toggle_dependency(&mut self, _dependency_id: &u64) {
-        // For default, don't do anything
-    }
+#[derive(Copy, Clone, Debug)]
+pub enum Direction {
+    Up, Down, Left, Right
 }
 
-fn bez_to_point(rect: &Rect) -> Point {
-    Point::new(rect.center().x, rect.min_y())
-}
-
-fn bez_from_point(rect: &Rect) -> Point {
-    Point::new(rect.center().x, rect.max_y())
-}
-
-fn bez_from_to(from: Point, to: Point) -> CubicBez {
-    let control_dist = ((to.y - from.y) / 2.0).abs();
-    let from_control = from + Vec2::new(0.0, control_dist);
-    let to_control = to - Vec2::new(0.0, control_dist);
-
-    CubicBez::new(from, from_control, to_control, to)
-}
-
-fn direct_dependents<C: Data + Flowable>(root_id: u64, children: &Vector<C>) -> Vector<u64> {
-    let mut result = Vector::new();
-    for child in children.iter() {
-        if child.get_dependencies().contains(&root_id) {
-            result.push_back(child.get_id())
+impl Direction {
+    fn to_unit_vec(&self) -> Vec2 {
+        match self {
+            Direction::Up => Vec2::new(0.0, -1.0),
+            Direction::Down => Vec2::new(0.0, 1.0),
+            Direction::Left => Vec2::new(-1.0, 0.0),
+            Direction::Right => Vec2::new(1.0, 0.0),
         }
     }
-    result
+
+    fn opposite(&self) -> Direction {
+        match self {
+            Direction::Up => Direction::Down,
+            Direction::Down => Direction::Up,
+            Direction::Left => Direction::Right,
+            Direction::Right => Direction::Left,
+        }
+    }
+
+    fn distance_along(&self, from: Point, to: Point) -> f64 {
+        match self {
+            Direction::Up | Direction::Down => (to.y - from.y).abs(),
+            Direction::Left | Direction::Right => (to.x - from.x).abs(),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct LinkPoint {
+    pub position: Point,
+    pub direction: Direction
+}
+
+impl LinkPoint {
+    fn with_offset(&self, offset: Point) -> LinkPoint {
+        LinkPoint {
+            position: self.position + offset.to_vec2(),
+            direction: self.direction
+        }
+    }
+}
+
+#[derive(Clone, Data, Debug, Eq, Hash,  PartialEq, Serialize, Deserialize)]
+pub struct FlowDependency {
+    pub local_link_index: usize,
+    pub dependency_id: u64,
+    pub dependency_link_index: usize,
+}
+
+pub trait Flowable : Pinnable {
+    fn get_link_points(&self, size: Size) -> Vec<LinkPoint>;
+
+    fn get_dependencies(&self) -> HashSet<FlowDependency>;
+    fn toggle_dependency(&mut self, dependency: &FlowDependency);
+    fn break_dependencies_to(&mut self, dependency_id: u64);
+
+    fn default_link_index(&self) -> usize {
+        // Default to the first dependency
+        0
+    }
+}
+
+fn bez_from_to(from: Point, from_dir: Direction, to: Point, to_dir: Option<Direction>) -> CubicBez {
+    let to_dir = to_dir.unwrap_or_else(|| from_dir.opposite());
+
+    let from_control = from + from_dir.to_unit_vec() * from_dir.distance_along(from, to) / 2.0;
+    let to_control = to - to_dir.to_unit_vec() * to_dir.distance_along(from, to) / 2.0;
+
+    CubicBez::new(from, from_control, to_control, to)
 }
 
 pub struct Flow<C> {
     pub pin_board: WidgetPod<(Point, Vector<C>), PinBoard<C>>,
 
-    linking_pin: Option<u64>,
+    linking_pin: Option<(u64, usize)>,
     mouse_position: Point,
+
+    link_points: HashMap<u64, Vec<LinkPoint>>,
 }
 
 impl<C: Data + Debug + Flowable + PartialEq> Flow<C> {
@@ -66,15 +110,40 @@ impl<C: Data + Debug + Flowable + PartialEq> Flow<C> {
 
             linking_pin: None,
             mouse_position: Point::ZERO,
+
+            link_points: HashMap::new(),
         }
     }
 
-    fn add_dependent_pin(&mut self, position: Point, data: &mut(Point, Vector<C>), dependency: &u64) {
-        let mut pin_board = self.pin_board.widget_mut();
+    fn add_dependent_pin(&mut self, position: Point, data: &mut(Point, Vector<C>), dependency_id: u64, dependency_link_index: usize) {
+        let pin_board = self.pin_board.widget_mut();
         let mut new_pin = pin_board.new_pin(position, data);
+        let default_link_index = new_pin.default_link_index();
+        let dependency = FlowDependency {
+            local_link_index: default_link_index,
+            dependency_id,
+            dependency_link_index,
+        };
         new_pin.toggle_dependency(&dependency);
         let (_, child_data_vector) = data;
         child_data_vector.push_back(new_pin);
+    }
+
+    fn closest_link_point(&self, flowable: &C, position: Point) -> Option<(usize, LinkPoint)> {
+        let mut closest = None;
+        let mut closest_distance = 0.0;
+
+        if let Some(link_points) = self.link_points.get(&flowable.get_id()) {
+            for (index, link_point) in link_points.iter().enumerate() {
+                let distance = link_point.position.distance(position);
+                if closest.is_none() || closest_distance > distance {
+                    closest = Some((index, link_point.clone()));
+                    closest_distance = distance;
+                }
+            }
+        }
+
+        closest
     }
 }
 
@@ -87,12 +156,9 @@ impl<C: Data + Flowable + PartialEq + Debug> Widget<(Point, Vector<C>)> for Flow
         }
 
         match ev {
-            Event::MouseDown(mouse_event) => {
-                if mouse_event.count == 1 && mouse_event.button.is_middle() {
-                    let pin_board = self.pin_board.widget();
-                    if let Some(pin_id_under_mouse) = pin_board.pin_id_under_mouse {
-                        self.linking_pin = Some(pin_id_under_mouse)
-                    }
+            Event::Command(command) => {
+                if let Some((dependency_id, link_index)) = command.get(START_LINK).cloned() {
+                    self.linking_pin = Some((dependency_id, link_index))
                 }
             },
             Event::MouseMove(mouse_event) => {
@@ -102,7 +168,7 @@ impl<C: Data + Flowable + PartialEq + Debug> Widget<(Point, Vector<C>)> for Flow
             Event::MouseUp(mouse_event) => {
                 let pin_board = self.pin_board.widget();
                 if mouse_event.button.is_middle() {
-                    if let Some(linking_id) = self.linking_pin {
+                    if let Some((linking_id, link_point_index)) = self.linking_pin {
                         if let Some(pin_id_under_mouse) = &pin_board.pin_id_under_mouse {
                             let (_, child_data_vector) = data;
 
@@ -111,12 +177,20 @@ impl<C: Data + Flowable + PartialEq + Debug> Widget<(Point, Vector<C>)> for Flow
                                 .iter_mut()
                                 .find(|pin| &pin.get_id() == pin_id_under_mouse);
 
+
                             if let Some(pin_under_mouse) = pin_under_mouse {
-                                pin_under_mouse.toggle_dependency(&linking_id);
-                                ctx.record_undo_state();
+                                if let Some((link_index, _)) = self.closest_link_point(pin_under_mouse, mouse_event.pos) {
+                                    let flow_dependency = FlowDependency {
+                                        local_link_index: link_point_index,
+                                        dependency_id: *pin_id_under_mouse,
+                                        dependency_link_index: link_index
+                                    };
+                                    pin_under_mouse.toggle_dependency(&flow_dependency);
+                                    ctx.record_undo_state();
+                                }
                             }
                         } else {
-                            self.add_dependent_pin(mouse_event.pos, data, &linking_id);
+                            self.add_dependent_pin(mouse_event.pos, data, linking_id, link_point_index);
                         }
 
                         self.linking_pin = None;
@@ -125,9 +199,8 @@ impl<C: Data + Flowable + PartialEq + Debug> Widget<(Point, Vector<C>)> for Flow
                     if let Some(pin_id_under_mouse) = &pin_board.pin_id_under_mouse {
                         let (_, child_data_vector) = data;
 
-                        let dependent_ids = direct_dependents(*pin_id_under_mouse, child_data_vector);
-                        for dependent in child_data_vector.iter_mut().filter(|child| dependent_ids.contains(&child.get_id())) {
-                            dependent.toggle_dependency(&pin_id_under_mouse);
+                        for child in child_data_vector.iter_mut() {
+                            child.break_dependencies_to(*pin_id_under_mouse);
                         }
 
                         ctx.replace_undo_state();
@@ -143,6 +216,23 @@ impl<C: Data + Flowable + PartialEq + Debug> Widget<(Point, Vector<C>)> for Flow
     }
 
     fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &(Point, Vector<C>), data: &(Point, Vector<C>), env: &Env) {
+        let canvas = self.pin_board.widget().canvas.widget();
+
+        let mut new_link_points = HashMap::new();
+        let (_, child_data_vector) = data;
+
+        for child in child_data_vector {
+            let id = child.get_id();
+            if let Some(child_position) = canvas.get_child_position(&id) {
+                let link_points: Vec<LinkPoint> = child.get_link_points(child_position.size()).into_iter()
+                    .map(|link_point| link_point.with_offset(child_position.origin()))
+                    .collect();
+                new_link_points.insert(id, link_points);
+            }
+        }
+
+        self.link_points = new_link_points;
+
         self.pin_board.update(ctx, data, env);
     }
 
@@ -151,34 +241,36 @@ impl<C: Data + Flowable + PartialEq + Debug> Widget<(Point, Vector<C>)> for Flow
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &(Point, Vector<C>), env: &Env) {
-        let pin_board = self.pin_board.widget();
-        let canvas = pin_board.canvas.widget();
-        for child_data in data.1.iter() {
-            let child_position = canvas.get_child_position(&child_data.get_id()).expect("Could not get child position");
-            let to = bez_to_point(child_position);
-            for dependency_id in child_data.get_dependencies().iter() {
-                let dependency_position = canvas.get_child_position(&dependency_id).expect("Could not get dependency position");
-                let from = bez_from_point(dependency_position);
+        // let pin_board = self.pin_board.widget();
+        // for child_data in data.1.iter() {
+            // let child_link_points = child_data.get_link_points();
+            // for dependency in child_data.get_dependencies().iter() {
+            //     let dependency_position = canvas.get_child_position(&dependency.dependency_id).expect("Could not get dependency position");
 
-                let bez = bez_from_to(from, to);
-                ctx.stroke(bez, &env.get(theme::BORDER_LIGHT), 2.0);
-            }
-        }
+            //     let bez = bez_from_to(from, to);
+            //     ctx.stroke(bez, &env.get(theme::BORDER_LIGHT), 2.0);
+            // }
+        // }
 
-        if let Some(linking_id) = &self.linking_pin {
-            let linking_position = canvas.get_child_position(&linking_id).expect("Could not get dependency position");
-            let from = bez_from_point(linking_position);
+        // if let Some(linking_id) = &self.linking_pin {
+        //     let from = bez_from_point(linking_position);
 
-            let to = if let Some(pin_position_under_mouse) = pin_board.pin_id_under_mouse.and_then(|id| canvas.get_child_position(&id)) {
-                bez_to_point(&pin_position_under_mouse)
-            } else {
-                self.mouse_position
-            };
+        //     let to = if let Some(pin_position_under_mouse) = pin_board.pin_id_under_mouse.and_then(|id| canvas.get_child_position(&id)) {
+        //         bez_to_point(&pin_position_under_mouse)
+        //     } else {
+        //         self.mouse_position
+        //     };
 
-            let bez = bez_from_to(from, to);
-            ctx.stroke(bez, &env.get(theme::BORDER_DARK), 2.0);
-        }
+        //     let bez = bez_from_to(from, to);
+        //     ctx.stroke(bez, &env.get(theme::BORDER_DARK), 2.0);
+        // }
 
         self.pin_board.paint(ctx, data, env);
+
+        for link_point in self.link_points.values().flatten() {
+            dbg!(link_point.position);
+            let circle = druid::kurbo::Circle::new(link_point.position, 5.0);
+            ctx.fill(circle, &druid::Color::RED);
+        }
     }
 }

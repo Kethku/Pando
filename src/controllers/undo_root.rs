@@ -23,7 +23,7 @@ impl<T: Data + Send + Serialize> UndoRoot<T> {
 
         thread::spawn(move || {
             for data_to_save in rx.iter() {
-                save(data_to_save);
+                // save(data_to_save);
             }
         });
 

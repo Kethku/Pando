@@ -1,12 +1,12 @@
-use druid::{Data, Lens, Insets, Point, Widget, WidgetExt};
-use druid::im::Vector;
+use druid::{Data, Lens, Insets, Point, Size, Widget, WidgetExt};
+use druid::im::HashSet;
 use druid::theme;
 use druid::widget::*;
 use serde::{Serialize, Deserialize};
 
 use super::canvas::{Positioned, Identifiable};
 use super::pin_board::Pinnable;
-use super::flow::Flowable;
+use super::flow::{Flowable, FlowDependency, LinkPoint, Direction};
 use crate::controllers::{
     DraggableWidgetExt,
     PandoWidgetExt,
@@ -27,7 +27,7 @@ pub struct TodoItem {
     position: Point,
     name: String,
     status: TodoStatus,
-    dependencies: Vector<u64>,
+    dependencies: HashSet<FlowDependency>,
     #[serde(default)]
     highlighted: bool
 }
@@ -67,27 +67,40 @@ impl Pinnable for TodoItem {
             position,
             name: "".to_owned(),
             status: TodoStatus::Authoring,
-            dependencies: Vector::new(),
+            dependencies: HashSet::new(),
             highlighted: false,
         }
     }
 }
 
 impl Flowable for TodoItem {
+    fn get_link_points(&self, size: Size) -> Vec<LinkPoint> {
+        vec![
+            LinkPoint {
+                position: Point::new(size.width / 2.0, 0.0),
+                direction: Direction::Up
+            },
+            LinkPoint {
+                position: Point::new(size.width / 2.0, size.height),
+                direction: Direction::Down
+            }
+        ]
+    }
 
-    fn get_dependencies(&self) -> Vector<u64> {
+    fn get_dependencies(&self) -> HashSet<FlowDependency> {
         self.dependencies.clone()
     }
 
-    fn toggle_dependency(&mut self, dependency_id: &u64) {
-        if &self.get_id() == dependency_id {
-            // Set dependency on self, swap to editing mode
-            self.status = TodoStatus::Authoring;
-        } else if self.dependencies.contains(dependency_id) {
-            self.dependencies.retain(|id| id != dependency_id);
+    fn toggle_dependency(&mut self, dependency: &FlowDependency) {
+        if self.dependencies.contains(dependency) {
+            self.dependencies.remove(dependency);
         } else {
-            self.dependencies.push_back(dependency_id.clone());
+            self.dependencies.insert(dependency.clone());
         }
+    }
+
+    fn break_dependencies_to(&mut self, dependency_id: u64) {
+        self.dependencies.retain(|dependency| dependency.dependency_id != dependency_id);
     }
 }
 

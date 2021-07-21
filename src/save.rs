@@ -27,6 +27,8 @@ pub fn save<T: Serialize>(data: T) {
 }
 
 pub fn read_or<T: Serialize + DeserializeOwned + Clone>(default: T) -> T {
+    return default;
+
     let path = data_path();
 
     if path.exists() {
