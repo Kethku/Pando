@@ -1,29 +1,28 @@
-use std::fmt::Debug;
 use std::thread;
 use std::sync::mpsc::{channel, Sender};
 
-use druid::{Data, EventCtx, Event, Env, LifeCycle, LifeCycleCtx, HotKey, Selector, SysMods, Widget};
+use druid::{EventCtx, Event, Env, LifeCycle, LifeCycleCtx, HotKey, Selector, SysMods, Widget};
 use druid::im::Vector;
 use druid::widget::Controller;
-use serde::Serialize;
 
-use crate::save::save;
+use crate::AppData;
+use crate::persistence::save;
 
 pub const RECORD_UNDO_STATE: Selector<()> = Selector::new("RECORD_UNDO_STATE");
 pub const REPLACE_UNDO_STATE: Selector<()> = Selector::new("REPLACE_UNDO_STATE");
 
-pub struct UndoRoot<T> {
-    history: Vector<T>,
-    tx: Sender<T>
+pub struct UndoRoot {
+    history: Vector<AppData>,
+    tx: Sender<AppData>
 }
 
-impl<T: Data + Send + Serialize> UndoRoot<T> {
+impl UndoRoot {
     pub fn new() -> Self {
-        let (tx, rx) = channel::<T>();
+        let (tx, rx) = channel::<AppData>();
 
         thread::spawn(move || {
             for data_to_save in rx.iter() {
-                // save(data_to_save);
+                save(data_to_save);
             }
         });
 
@@ -34,8 +33,8 @@ impl<T: Data + Send + Serialize> UndoRoot<T> {
     }
 }
 
-impl<T: Data + Debug, W: Widget<T>> Controller<T, W> for UndoRoot<T> {
-    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+impl<W: Widget<AppData>> Controller<AppData, W> for UndoRoot {
+    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut AppData, env: &Env) {
         child.event(ctx, event, data, env);
 
         if ctx.is_handled() {
@@ -74,7 +73,7 @@ impl<T: Data + Debug, W: Widget<T>> Controller<T, W> for UndoRoot<T> {
         }
     }
 
-    fn lifecycle(&mut self, child: &mut W, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env)  {
+    fn lifecycle(&mut self, child: &mut W, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &AppData, env: &Env)  {
         child.lifecycle(ctx, event, data, env);
 
         if let LifeCycle::WidgetAdded = event {

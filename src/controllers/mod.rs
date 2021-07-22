@@ -11,6 +11,7 @@ use druid::{Command, Data, Event, EventCtx, LifeCycle, KbKey, Target, UpdateCtx,
 use druid::widget::ControllerHost;
 use serde::Serialize;
 
+use crate::AppData;
 use crate::widgets::canvas::Positioned;
 use draggable::DragController;
 use event_handler::EventHandler;
@@ -38,7 +39,6 @@ pub trait PandoWidgetExt<T, W> where T: Data, W: Widget<T> {
     fn on_mouse_double(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
     fn on_mouse_ctrl(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
     fn take_focus(self) -> ControllerHost<W, TakeFocus>;
-    fn undo_root(self) -> ControllerHost<W, UndoRoot<T>>;
     fn handles_mouse(self) -> ControllerHost<W, HandlesMouse>;
 }
 
@@ -117,10 +117,6 @@ impl<T: Data + Debug + Send + Serialize, W: Widget<T> + 'static> PandoWidgetExt<
         self.controller(TakeFocus::new())
     }
 
-    fn undo_root(self) -> ControllerHost<W, UndoRoot<T>> {
-        self.controller(UndoRoot::new())
-    }
-
     fn handles_mouse(self) -> ControllerHost<W, HandlesMouse> {
         self.controller(HandlesMouse { })
     }
@@ -148,5 +144,17 @@ impl RecordUndoStateExt for UpdateCtx<'_, '_> {
 
     fn replace_undo_state(&mut self) {
         self.submit_command(Command::new(REPLACE_UNDO_STATE, (), Target::Auto));
+    }
+}
+
+
+pub trait AppDataExt<W> where W: Widget<AppData> {
+    fn undo_root(self) -> ControllerHost<W, UndoRoot>;
+}
+
+
+impl<W: Widget<AppData> + 'static> AppDataExt<W> for W {
+    fn undo_root(self) -> ControllerHost<W, UndoRoot> {
+        self.controller(UndoRoot::new())
     }
 }

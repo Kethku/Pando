@@ -24,13 +24,13 @@ pub enum TodoStatus {
 
 #[derive(Clone, Data, Debug, Lens, PartialEq, Serialize, Deserialize)]
 pub struct TodoItem {
-    id: u64,
-    position: Point,
-    name: String,
-    status: TodoStatus,
-    dependencies: HashSet<FlowDependency>,
+    pub id: u64,
+    pub position: Point,
+    pub name: String,
+    pub status: TodoStatus,
+    pub dependencies: HashSet<FlowDependency>,
     #[serde(default)]
-    highlighted: bool
+    pub highlighted: bool
 }
 
 impl TodoItem {

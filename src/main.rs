@@ -2,20 +2,22 @@
 
 mod widgets;
 mod controllers;
-mod save;
+mod persistence;
 
 use druid::{
     AppLauncher, LocalizedString, Point, WindowDesc, WidgetExt
 };
-use druid::im::vector;
+use druid::im::{vector, Vector};
 
 use widgets::{
     flow::Flow,
-    todo::todo,
+    todo::{todo, TodoItem},
     dot_grid::dot_grid
 };
 use controllers::*;
-use save::read_or;
+use persistence::read_or;
+
+pub type AppData = (Point, Vector<TodoItem>);
 
 fn main() {
     let window = WindowDesc::new(|| Flow::new(|| todo())
