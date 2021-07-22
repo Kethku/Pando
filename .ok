@@ -1,0 +1,1 @@
+install: cargo build --release; rm c:/dev/tools/pando.* -ErrorAction SilentlyContinue; cp ./target/release/pando.exe c:/dev/tools/pando.exe
