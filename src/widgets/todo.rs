@@ -7,6 +7,7 @@ use serde::{Serialize, Deserialize};
 use super::canvas::{Positioned, Identifiable};
 use super::pin_board::Pinnable;
 use super::flow::{Flowable, FlowDependency, LinkPoint, Direction};
+use super::link_points::LinkPointsEx;
 use crate::controllers::{
     DraggableWidgetExt,
     PandoWidgetExt,
@@ -161,4 +162,5 @@ pub fn todo() -> impl Widget<TodoItem> {
             todo.highlighted = !todo.highlighted;
             ctx.record_undo_state();
         })
+        .with_link_points()
 }

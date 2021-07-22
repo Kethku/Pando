@@ -1,44 +1,74 @@
-use druid::{Color, WidgetPod};
+use druid::{Command, Point, Target, WidgetPod};
+use druid::theme;
+use druid::kurbo::Rect;
 use druid::widget::prelude::*;
 
-use super::flow::{LinkPoint, Flowable};
+use super::flow::{LinkPoint, Flowable, LINK_STARTED, LINK_FINISHED, LINK_STOPPED};
 
-const LINK_POINT_SIZE: f64 = 5.0;
+const LINK_POINT_SIZE: f64 = 10.0;
 
-impl Widget<()> for LinkPoint {
-    fn event(&mut self, _ctx: &mut EventCtx, _event: &Event, _data: &mut (), _env: &Env) {
-    }
+fn link_point_rect(point: &LinkPoint) -> Rect {
+    Rect::from_center_size(point.position, Size::new(LINK_POINT_SIZE, LINK_POINT_SIZE))
+}
 
-    fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _data: &(), _env: &Env) {
-    }
+pub struct LinkPoints<T, W> {
+    inner: WidgetPod<T, W>,
+    points: Vec<LinkPoint>,
 
-    fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &(), _data: &(), _env: &Env) {
-    }
+    mouse_position: Option<Point>,
+}
 
-    fn layout(&mut self, _ctx: &mut LayoutCtx, _bc: &BoxConstraints, _data: &(), _env: &Env) -> Size {
-        Size::new(LINK_POINT_SIZE, LINK_POINT_SIZE)
-    }
+impl<T: Data + Flowable, W: Widget<T>> LinkPoints<T, W> {
+    fn new(inner: W) -> Self {
+        LinkPoints {
+            inner: WidgetPod::new(inner),
+            points: Vec::new(),
 
-    fn paint(&mut self, ctx: &mut PaintCtx, _data: &(), _env: &Env) {
-        let rect = druid::kurbo::Rect::new(0.0, 0.0, LINK_POINT_SIZE, LINK_POINT_SIZE);
-        ctx.fill(rect, &Color::RED);
+            mouse_position: None,
+        }
     }
 }
 
-pub struct LinkPoints<T> {
-    inner: WidgetPod<T, Box<dyn Widget<T>>>,
-    points: Vec<WidgetPod<(), LinkPoint>>,
-}
-
-impl<T: Data + Flowable> Widget<T> for LinkPoints<T> {
+impl<T: Data + Flowable, W: Widget<T>> Widget<T> for LinkPoints<T, W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
-        for point in self.points.iter_mut() {
-            point.event(ctx, event, &mut (), env);
+        match event {
+            Event::MouseMove(mouse_event) => {
+                self.mouse_position = Some(mouse_event.pos)
+            },
+            Event::MouseDown(mouse_event) => {
+                if mouse_event.button.is_left() && mouse_event.count == 1 {
+                    for (link_index, point) in self.points.iter().enumerate() {
+                        let rect = link_point_rect(point);
+                        if rect.contains(mouse_event.pos) {
+                            ctx.submit_command(Command::new(LINK_STARTED, (data.get_id(), link_index), Target::Auto));
+                            ctx.set_handled();
+                            break;
+                        }
+                    }
+                }
+            },
+            Event::MouseUp(mouse_event) => {
+                if mouse_event.button.is_left() {
+                    for (link_index, point) in self.points.iter().enumerate() {
+                        let rect = link_point_rect(point);
+                        if rect.contains(mouse_event.pos) {
+                            ctx.submit_command(Command::new(LINK_FINISHED, (data.get_id(), link_index), Target::Auto));
+                            ctx.set_handled();
+                            break;
+                        }
+                    }
+
+                    if !ctx.is_handled() {
+                        // No matching link point. Just stop
+                        ctx.submit_command(Command::new(LINK_STOPPED, (), Target::Auto));
+                        ctx.set_handled();
+                    }
+                }
+            },
+            _ => { }
         }
 
-        if !ctx.is_handled() {
-            self.inner.event(ctx, event, data, env);
-        }
+        self.inner.event(ctx, event, data, env);
     }
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
@@ -50,20 +80,47 @@ impl<T: Data + Flowable> Widget<T> for LinkPoints<T> {
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
+
+        let half_link_size = LINK_POINT_SIZE / 2.0;
+        let inner_offset = Point::new(half_link_size, half_link_size);
         let inner_size = self.inner.layout(ctx, bc, data, env);
-        self.points = data.get_link_points(inner_size).into_iter().map(|link_point| WidgetPod::new(link_point)).collect();
-        inner_size
+        self.inner.set_origin(ctx, data, env, inner_offset);
+
+        self.points = data
+            .get_link_points(inner_size)
+            .into_iter()
+            // Translate the link points to be centered on the inner widget
+            .map(|link_point| link_point.with_offset(inner_offset))
+            .collect();
+        // Report a size 
+        Size::new(inner_size.width + LINK_POINT_SIZE, inner_size.height + LINK_POINT_SIZE)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        for point in self.points.iter_mut() {
-            point.paint(ctx, &(), env);
-        }
-
         self.inner.paint(ctx, data, env);
+
+        for point in self.points.iter() {
+            let rect = link_point_rect(point);
+
+            let mut color = theme::BORDER_LIGHT;
+            if let Some(mouse_position) = self.mouse_position {
+                if rect.contains(mouse_position) {
+                    color = theme::BORDER_DARK;
+                }
+            }
+
+            let rect = rect.to_rounded_rect(2.0);
+            ctx.fill(rect, &env.get(color));
+        }
     }
 }
 
-pub trait LinkPointsEx<T> {
-    fn with_link_points(self) -> LinkPoints<T>;
+pub trait LinkPointsEx<T, W> {
+    fn with_link_points(self) -> LinkPoints<T, W>;
+}
+
+impl<T: Data + Flowable, W: Widget<T> + 'static> LinkPointsEx<T, W> for W {
+    fn with_link_points(self) -> LinkPoints<T, W> {
+        LinkPoints::new(self)
+    }
 }

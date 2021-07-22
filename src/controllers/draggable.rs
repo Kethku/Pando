@@ -35,6 +35,7 @@ impl<T: Positioned, W: Widget<T>> Controller<T, W> for DragController {
                         let position = data.get_position();
                         self.child_dragged_from = Some(position.clone());
                         self.mouse_dragged_from = Some(mouse_event.window_pos);
+                        ctx.set_active(true);
 
                         if self.consume_mouse_events {
                             ctx.set_handled();
@@ -44,6 +45,12 @@ impl<T: Positioned, W: Widget<T>> Controller<T, W> for DragController {
 
             },
             Event::MouseMove(mouse_event) => {
+                if !mouse_event.buttons.contains(druid::MouseButton::Left) {
+                    ctx.set_active(false);
+                    self.child_dragged_from = None;
+                    self.mouse_dragged_from = None;
+                }
+
                 if let (Some(child_dragged_from), Some(mouse_dragged_from)) = (self.child_dragged_from, self.mouse_dragged_from) {
                     let current_delta = mouse_event.window_pos - mouse_dragged_from;
                     data.set_position(child_dragged_from + current_delta);
@@ -53,12 +60,6 @@ impl<T: Positioned, W: Widget<T>> Controller<T, W> for DragController {
                     if self.consume_mouse_events {
                         ctx.set_handled();
                     }
-                }
-            },
-            Event::MouseUp(mouse_event) => {
-                if mouse_event.button.is_left() {
-                    self.child_dragged_from = None;
-                    self.mouse_dragged_from = None;
                 }
             },
             _ => {}
