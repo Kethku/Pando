@@ -44,16 +44,16 @@ pub trait Identifiable {
 }
 
 // Widget which renders it's children on an infinite grid
-pub struct Canvas<C> {
-    new_widget_closure: Box<dyn Fn() -> Box<dyn Widget<C>>>,
-    children: Vec<WidgetPod<C, Box<dyn Widget<C>>>>,
+pub struct Canvas<C, W> {
+    new_widget_closure: Box<dyn Fn() -> W>,
+    children: Vec<WidgetPod<C, W>>,
     child_positions: HashMap<u64, Rect>,
 }
 
-impl<C: Data + Positioned + PartialEq> Canvas<C> {
-    pub fn new<W: Widget<C> + 'static>(new_widget_closure: impl Fn() -> W + 'static) -> Self {
+impl<C: Data + Positioned + PartialEq, W: Widget<C>> Canvas<C, W> {
+    pub fn new(new_widget_closure: impl Fn() -> W + 'static) -> Self {
         Canvas {
-            new_widget_closure: Box::new(move || Box::new(new_widget_closure())),
+            new_widget_closure: Box::new(new_widget_closure),
             children: Vec::new(),
             child_positions: HashMap::new(),
         }
@@ -79,7 +79,7 @@ impl<C: Data + Positioned + PartialEq> Canvas<C> {
     }
 }
 
-impl<C: Data + Positioned + Identifiable + PartialEq> Widget<(Point, Vector<C>)> for Canvas<C> {
+impl<C: Data + Positioned + Identifiable + PartialEq, W: Widget<C>> Widget<(Point, Vector<C>)> for Canvas<C, W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut (Point, Vector<C>), env: &Env) {
         let mut children = self.children.iter_mut();
 

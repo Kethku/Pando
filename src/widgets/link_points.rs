@@ -19,7 +19,7 @@ pub struct LinkPoints<T, W> {
 }
 
 impl<T: Data + Flowable, W: Widget<T>> LinkPoints<T, W> {
-    fn new(inner: W) -> Self {
+    pub fn new(inner: W) -> Self {
         LinkPoints {
             inner: WidgetPod::new(inner),
             points: Vec::new(),
@@ -80,7 +80,6 @@ impl<T: Data + Flowable, W: Widget<T>> Widget<T> for LinkPoints<T, W> {
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
-
         let half_link_size = LINK_POINT_SIZE / 2.0;
         let inner_offset = Point::new(half_link_size, half_link_size);
         let inner_size = self.inner.layout(ctx, bc, data, env);
@@ -99,28 +98,20 @@ impl<T: Data + Flowable, W: Widget<T>> Widget<T> for LinkPoints<T, W> {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
         self.inner.paint(ctx, data, env);
 
-        for point in self.points.iter() {
-            let rect = link_point_rect(point);
+        if ctx.is_hot() {
+            for point in self.points.iter() {
+                let rect = link_point_rect(point);
 
-            let mut color = theme::BORDER_LIGHT;
-            if let Some(mouse_position) = self.mouse_position {
-                if rect.contains(mouse_position) {
-                    color = theme::BORDER_DARK;
+                let mut color = theme::BORDER_LIGHT;
+                if let Some(mouse_position) = self.mouse_position {
+                    if rect.contains(mouse_position) {
+                        color = theme::BORDER_DARK;
+                    }
                 }
+
+                let rect = rect.to_rounded_rect(2.0);
+                ctx.fill(rect, &env.get(color));
             }
-
-            let rect = rect.to_rounded_rect(2.0);
-            ctx.fill(rect, &env.get(color));
         }
-    }
-}
-
-pub trait LinkPointsEx<T, W> {
-    fn with_link_points(self) -> LinkPoints<T, W>;
-}
-
-impl<T: Data + Flowable, W: Widget<T> + 'static> LinkPointsEx<T, W> for W {
-    fn with_link_points(self) -> LinkPoints<T, W> {
-        LinkPoints::new(self)
     }
 }

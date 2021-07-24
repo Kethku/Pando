@@ -14,17 +14,17 @@ pub trait Pinnable : Positioned + Identifiable {
     fn new(position: Point, id: u64) -> Self;
 }
 
-pub struct PinBoard<C> {
-    pub canvas: WidgetPod<(Point, Vector<C>), Canvas<C>>,
+pub struct PinBoard<C, W> {
+    pub canvas: WidgetPod<(Point, Vector<C>), Canvas<C, W>>,
 
     pub mouse_down_position: Option<Point>,
     pub pin_id_under_mouse: Option<u64>,
 }
 
-impl<C: Data + Pinnable + PartialEq> PinBoard<C> {
-    pub fn new<CW: Widget<C> + 'static>(
-        new_widget: impl Fn() -> CW + 'static,
-    ) -> PinBoard<C> {
+impl<C: Data + Pinnable + PartialEq, W: Widget<C>> PinBoard<C, W> {
+    pub fn new(
+        new_widget: impl Fn() -> W + 'static,
+    ) -> PinBoard<C, W> {
         let canvas = Canvas::new(new_widget);
         PinBoard {
             canvas: WidgetPod::new(canvas),
@@ -32,6 +32,14 @@ impl<C: Data + Pinnable + PartialEq> PinBoard<C> {
             mouse_down_position: None,
             pin_id_under_mouse: None,
         }
+    }
+
+    pub fn canvas(&self) -> &Canvas<C, W> {
+        self.canvas.widget()
+    }
+
+    pub fn canvas_mut(&mut self) -> &mut Canvas<C,W> {
+        self.canvas.widget_mut()
     }
 
     pub fn new_pin(&mut self, position: Point, data: &(Point, Vector<C>)) -> C {
@@ -55,7 +63,7 @@ impl<C: Data + Pinnable + PartialEq> PinBoard<C> {
     }
 }
 
-impl<C: Data + Debug + Pinnable + PartialEq> Widget<(Point, Vector<C>)> for PinBoard<C> {
+impl<C: Data + Debug + Pinnable + PartialEq, W: Widget<C>> Widget<(Point, Vector<C>)> for PinBoard<C, W> {
     fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut (Point, Vector<C>), env: &Env) {
         self.canvas.event(ctx, ev, data, env);
 

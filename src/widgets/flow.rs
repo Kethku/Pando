@@ -11,7 +11,9 @@ use druid::widget::*;
 use druid::widget::prelude::*;
 use serde::{Serialize, Deserialize};
 
+use super::canvas::Canvas;
 use super::pin_board::{PinBoard, Pinnable};
+use super::link_points::LinkPoints;
 use crate::controllers::RecordUndoStateExt;
 
 pub const LINK_STARTED: Selector<(u64, usize)> = Selector::new("LINK_STARTED");
@@ -94,8 +96,8 @@ fn bez_from_to(from: Point, from_dir: Direction, to: Point, to_dir: Option<Direc
     CubicBez::new(from, from_control, to_control, to)
 }
 
-pub struct Flow<C> {
-    pub pin_board: WidgetPod<(Point, Vector<C>), PinBoard<C>>,
+pub struct Flow<C, W> {
+    pub pin_board: WidgetPod<(Point, Vector<C>), PinBoard<C, LinkPoints<C, W>>>,
 
     linking_pin: Option<(u64, usize)>,
     mouse_position: Point,
@@ -103,11 +105,11 @@ pub struct Flow<C> {
     link_points: HashMap<u64, Vec<LinkPoint>>,
 }
 
-impl<C: Data + Debug + Flowable + PartialEq> Flow<C> {
-    pub fn new<CW: Widget<C> + 'static>(
-        new_widget: impl Fn() -> CW + 'static,
-    ) -> Flow<C> {
-        let pin_board = PinBoard::new(new_widget);
+impl<C: Data + Debug + Flowable + PartialEq, W: Widget<C>> Flow<C, W> {
+    pub fn new(
+        new_widget: impl Fn() -> W + 'static,
+    ) -> Flow<C, W> {
+        let pin_board = PinBoard::new(move || LinkPoints::new((new_widget)()));
         Flow {
             pin_board: WidgetPod::new(pin_board),
 
@@ -116,6 +118,22 @@ impl<C: Data + Debug + Flowable + PartialEq> Flow<C> {
 
             link_points: HashMap::new(),
         }
+    }
+
+    pub fn canvas(&self) -> &Canvas<C, LinkPoints<C, W>> {
+        self.pin_board().canvas()
+    }
+
+    pub fn canvas_mut(&mut self) -> &mut Canvas<C, LinkPoints<C, W>> {
+        self.pin_board_mut().canvas_mut()
+    }
+
+    pub fn pin_board(&self) -> &PinBoard<C, LinkPoints<C, W>> {
+        self.pin_board.widget()
+    }
+
+    pub fn pin_board_mut(&mut self) -> &mut PinBoard<C, LinkPoints<C, W>> {
+        self.pin_board.widget_mut()
     }
 
     fn add_dependent_pin(&mut self, position: Point, data: &mut(Point, Vector<C>), dependency_id: u64, dependency_link_index: usize) {
@@ -133,7 +151,7 @@ impl<C: Data + Debug + Flowable + PartialEq> Flow<C> {
     }
 }
 
-impl<C: Data + Flowable + PartialEq + Debug> Widget<(Point, Vector<C>)> for Flow<C> {
+impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(Point, Vector<C>)> for Flow<C, W> {
     fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut (Point, Vector<C>), env: &Env) {
         self.pin_board.event(ctx, ev, data, env);
 
