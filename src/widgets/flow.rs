@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use druid::{
     Point, WidgetPod, Vec2, Selector
 };
-use druid::im::{HashSet, Vector};
+use druid::im::{HashSet as ImHashSet, HashMap as ImHashMap};
 use druid::kurbo::CubicBez;
 use druid::theme;
 use druid::widget::*;
@@ -13,7 +13,7 @@ use serde::{Serialize, Deserialize};
 
 use super::canvas::Canvas;
 use super::pin_board::{PinBoard, Pinnable};
-use super::link_points::LinkPoints;
+use super::link_points::{LinkPoints, LINK_POINT_SIZE};
 use crate::controllers::RecordUndoStateExt;
 
 pub const LINK_STARTED: Selector<(u64, usize)> = Selector::new("LINK_STARTED");
@@ -77,7 +77,7 @@ pub struct FlowDependency {
 pub trait Flowable : Pinnable {
     fn get_link_points(&self, size: Size) -> Vec<LinkPoint>;
 
-    fn get_dependencies(&self) -> HashSet<FlowDependency>;
+    fn get_dependencies(&self) -> ImHashSet<FlowDependency>;
     fn toggle_dependency(&mut self, dependency: &FlowDependency);
     fn break_dependencies_to(&mut self, dependency_id: u64);
 
@@ -97,7 +97,7 @@ fn bez_from_to(from: Point, from_dir: Direction, to: Point, to_dir: Option<Direc
 }
 
 pub struct Flow<C, W> {
-    pub pin_board: WidgetPod<(Point, Vector<C>), PinBoard<C, LinkPoints<C, W>>>,
+    pub pin_board: WidgetPod<(Point, ImHashMap<u64, C>), PinBoard<C, LinkPoints<C, W>>>,
 
     linking_pin: Option<(u64, usize)>,
     mouse_position: Point,
@@ -136,23 +136,24 @@ impl<C: Data + Debug + Flowable + PartialEq, W: Widget<C>> Flow<C, W> {
         self.pin_board.widget_mut()
     }
 
-    fn add_dependent_pin(&mut self, position: Point, data: &mut(Point, Vector<C>), dependency_id: u64, dependency_link_index: usize) {
+    fn add_dependent_pin(&mut self, position: Point, data: &mut(Point, ImHashMap<u64, C>), dependency_id: u64, dependency_link_index: usize) {
         let pin_board = self.pin_board.widget_mut();
-        let mut new_pin = pin_board.new_pin(position, data);
+        let (pin_id, mut new_pin) = pin_board.new_pin(position, data);
         let default_link_index = new_pin.default_link_index();
         let dependency = FlowDependency {
             local_link_index: default_link_index,
             dependency_id,
             dependency_link_index,
         };
+
         new_pin.toggle_dependency(&dependency);
-        let (_, child_data_vector) = data;
-        child_data_vector.push_back(new_pin);
+        let (_, child_data_map) = data;
+        child_data_map.insert(pin_id, new_pin);
     }
 }
 
-impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(Point, Vector<C>)> for Flow<C, W> {
-    fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut (Point, Vector<C>), env: &Env) {
+impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(Point, ImHashMap<u64, C>)> for Flow<C, W> {
+    fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut (Point, ImHashMap<u64, C>), env: &Env) {
         self.pin_board.event(ctx, ev, data, env);
 
         if ctx.is_handled() {
@@ -166,8 +167,8 @@ impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(Point, Vector
                 } else if let Some((dependency_id, dependency_point_index)) = command.get(LINK_FINISHED).cloned() {
                     if let Some((linking_id, linking_point_index)) = self.linking_pin {
                         let (_, child_data) = data;
-                        let linking_pin = child_data.iter_mut()
-                            .find(|pin| pin.get_id() == linking_id)
+                        let linking_pin = child_data
+                            .get_mut(&linking_id)
                             .expect("Could not find linking pin");
                         linking_pin.toggle_dependency(&FlowDependency {
                             local_link_index: linking_point_index,
@@ -195,9 +196,9 @@ impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(Point, Vector
                     }
                 } else if mouse_event.button.is_right() {
                     if let Some(pin_id_under_mouse) = &pin_board.pin_id_under_mouse {
-                        let (_, child_data_vector) = data;
+                        let (_, child_data_map) = data;
 
-                        for child in child_data_vector.iter_mut() {
+                        for (_, child) in child_data_map.iter_mut() {
                             child.break_dependencies_to(*pin_id_under_mouse);
                         }
 
@@ -209,23 +210,32 @@ impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(Point, Vector
         }
     }
 
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, ev: &LifeCycle, data: &(Point, Vector<C>), env: &Env) {
+    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, ev: &LifeCycle, data: &(Point, ImHashMap<u64, C>), env: &Env) {
         self.pin_board.lifecycle(ctx, ev, data, env);
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &(Point, Vector<C>), data: &(Point, Vector<C>), env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &(Point, ImHashMap<u64, C>), data: &(Point, ImHashMap<u64, C>), env: &Env) {
         let canvas = self.pin_board.widget().canvas.widget();
 
         let mut new_link_points = HashMap::new();
-        let (_, child_data_vector) = data;
+        let (_, child_data_map) = data;
 
-        for child in child_data_vector {
-            let id = child.get_id();
+        for (id, child) in child_data_map {
             if let Some(child_position) = canvas.get_child_position(&id) {
-                let link_points: Vec<LinkPoint> = child.get_link_points(child_position.size()).into_iter()
-                    .map(|link_point| link_point.with_offset(child_position.origin()))
+                let external_child_size = child_position.size();
+                let inner_child_size = Size::new(
+                    external_child_size.width - LINK_POINT_SIZE,
+                    external_child_size.height - LINK_POINT_SIZE);
+
+                let external_child_offset = child_position.origin();
+                let internal_child_offset = Point::new(
+                    external_child_offset.x + LINK_POINT_SIZE / 2.0,
+                    external_child_offset.y + LINK_POINT_SIZE / 2.0);
+
+                let link_points: Vec<LinkPoint> = child.get_link_points(inner_child_size).into_iter()
+                    .map(|link_point| link_point.with_offset(internal_child_offset))
                     .collect();
-                new_link_points.insert(id, link_points);
+                new_link_points.insert(*id, link_points);
             }
         }
 
@@ -234,13 +244,13 @@ impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(Point, Vector
         self.pin_board.update(ctx, data, env);
     }
 
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &(Point, Vector<C>), env: &Env) -> Size {
+    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &(Point, ImHashMap<u64, C>), env: &Env) -> Size {
         self.pin_board.layout(ctx, bc, data, env)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &(Point, Vector<C>), env: &Env) {
-        for child_data in data.1.iter() {
-            if let Some(child_link_points) = self.link_points.get(&child_data.get_id()) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &(Point, ImHashMap<u64, C>), env: &Env) {
+        for (child_id, child_data) in data.1.iter() {
+            if let Some(child_link_points) = self.link_points.get(child_id) {
                 for dependency in child_data.get_dependencies().iter() {
                     let child_link_point = child_link_points.get(dependency.local_link_index).expect("Could not get child link point");
                     if let Some(dependency_link_points) = self.link_points.get(&dependency.dependency_id) {

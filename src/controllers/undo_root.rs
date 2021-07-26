@@ -2,7 +2,7 @@ use std::thread;
 use std::sync::mpsc::{channel, Sender};
 
 use druid::{EventCtx, Event, Env, LifeCycle, LifeCycleCtx, HotKey, Selector, SysMods, Widget};
-use druid::im::Vector;
+use druid::im::Vector as ImVector;
 use druid::widget::Controller;
 
 use crate::AppData;
@@ -12,7 +12,7 @@ pub const RECORD_UNDO_STATE: Selector<()> = Selector::new("RECORD_UNDO_STATE");
 pub const REPLACE_UNDO_STATE: Selector<()> = Selector::new("REPLACE_UNDO_STATE");
 
 pub struct UndoRoot {
-    history: Vector<AppData>,
+    history: ImVector<AppData>,
     tx: Sender<AppData>
 }
 
@@ -27,7 +27,7 @@ impl UndoRoot {
         });
 
         Self {
-            history: Vector::new(),
+            history: ImVector::new(),
             tx 
         }
     }

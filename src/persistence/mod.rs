@@ -1,4 +1,5 @@
 mod v0;
+mod v1;
 
 use std::fs::{
     File, remove_file
@@ -9,7 +10,8 @@ use std::io::{Read, Write};
 use dirs::home_dir;
 
 use crate::AppData;
-use v0::{V0AppData, upgrade};
+use v0::{V0AppData, upgrade_v0_to_v1};
+use v1::{V1AppData, upgrade_v1_to_current};
 
 fn data_path() -> PathBuf {
     let mut path = home_dir().expect("Could not read home directory");
@@ -30,13 +32,15 @@ pub fn save(data: AppData) {
 }
 
 pub fn deserialize(json: &str) -> AppData {
-    if let Ok(app_data) = serde_json::from_str::<AppData>(json) {
-        app_data
-    } else if let Ok(v0_app_data) = serde_json::from_str::<V0AppData>(json) {
-        upgrade(v0_app_data)
-    } else {
-        panic!("Could not deserialize save");
-    }
+    serde_json::from_str::<AppData>(json).unwrap_or_else(|_| {
+        let v1_app_data = serde_json::from_str::<V1AppData>(json).unwrap_or_else(|_| {
+            let v0_app_data = serde_json::from_str::<V0AppData>(json).expect("Invalid save format");
+
+            upgrade_v0_to_v1(v0_app_data)
+        });
+
+        upgrade_v1_to_current(v1_app_data)
+    })
 }
 
 pub fn read_or(default: AppData) -> AppData {

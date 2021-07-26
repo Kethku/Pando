@@ -7,7 +7,7 @@ mod persistence;
 use druid::{
     AppLauncher, LocalizedString, Point, WindowDesc, WidgetExt
 };
-use druid::im::{vector, Vector};
+use druid::im::HashMap as ImHashMap;
 
 use widgets::{
     flow::Flow,
@@ -17,7 +17,7 @@ use widgets::{
 use controllers::*;
 use persistence::read_or;
 
-pub type AppData = (Point, Vector<TodoItem>);
+pub type AppData = (Point, ImHashMap<u64, TodoItem>);
 
 fn main() {
     let window = WindowDesc::new(|| Flow::new(|| todo())
@@ -26,6 +26,6 @@ fn main() {
             .undo_root()
     ).title(LocalizedString::new("Pando"));
     AppLauncher::with_window(window)
-        .launch(read_or((Point::ZERO, vector![])))
+        .launch(read_or((Point::ZERO, ImHashMap::new())))
         .expect("Launch Failed");
 }

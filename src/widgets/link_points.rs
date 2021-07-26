@@ -5,7 +5,7 @@ use druid::widget::prelude::*;
 
 use super::flow::{LinkPoint, Flowable, LINK_STARTED, LINK_FINISHED, LINK_STOPPED};
 
-const LINK_POINT_SIZE: f64 = 10.0;
+pub const LINK_POINT_SIZE: f64 = 10.0;
 
 fn link_point_rect(point: &LinkPoint) -> Rect {
     Rect::from_center_size(point.position, Size::new(LINK_POINT_SIZE, LINK_POINT_SIZE))

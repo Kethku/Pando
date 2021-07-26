@@ -1,8 +1,8 @@
 use druid::Point;
-use druid::im::{Vector, HashSet};
+use druid::im::{Vector as ImVector, HashSet};
 use serde::{Serialize, Deserialize};
 
-use crate::AppData;
+use super::v1::V1AppData;
 use crate::widgets::{
     flow::FlowDependency,
     todo::{TodoItem, TodoStatus},
@@ -14,7 +14,7 @@ pub struct V0TodoItem {
     position: Point,
     name: String,
     status: TodoStatus,
-    dependencies: Vector<u64>,
+    dependencies: ImVector<u64>,
     #[serde(default)]
     highlighted: bool
 }
@@ -41,8 +41,8 @@ impl V0TodoItem {
     }
 }
 
-pub type V0AppData = (Point, Vector<V0TodoItem>);
-pub fn upgrade(v0_state: V0AppData) -> AppData {
+pub type V0AppData = (Point, ImVector<V0TodoItem>);
+pub fn upgrade_v0_to_v1(v0_state: V0AppData) -> V1AppData {
     let (offset, todo_data) = v0_state;
     (offset, todo_data.into_iter().map(V0TodoItem::upgrade).collect())
 }
