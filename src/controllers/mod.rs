@@ -66,7 +66,7 @@ impl<T: Data + Debug + Send + Serialize, W: Widget<T> + 'static> PandoWidgetExt<
     fn on_mouse_left(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>> {
         self.controller(EventHandler::new(callback, true, false, |_, event| {
             if let Event::MouseDown(mouse_event) = event {
-                dbg!(mouse_event.button.is_left() && mouse_event.count == 1)
+                mouse_event.button.is_left() && mouse_event.count == 1
             } else {
                 false
             }

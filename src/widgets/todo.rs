@@ -161,4 +161,7 @@ pub fn todo() -> impl Widget<TodoItem> {
             todo.highlighted = !todo.highlighted;
             ctx.record_undo_state();
         })
+        .on_mouse_middle(|_ctx, todo| {
+            todo.status = TodoStatus::Authoring;
+        })
 }
