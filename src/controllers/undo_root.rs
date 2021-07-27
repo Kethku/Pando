@@ -49,6 +49,9 @@ impl<W: Widget<AppData>> Controller<AppData, W> for UndoRoot {
                     if let Some(_) = self.history.pop_back() {
                         if let Some(previous_state) = self.history.last() {
                             *data = previous_state.clone();
+                            ctx.request_layout();
+                            ctx.request_update();
+                            ctx.request_paint();
                         }
                     }
                 }

@@ -2,6 +2,7 @@ use druid::Point;
 use druid::widget::*;
 use druid::widget::prelude::*;
 
+use super::RecordUndoStateExt;
 use crate::widgets::canvas::Positioned;
 
 pub struct DragController {
@@ -36,6 +37,7 @@ impl<T: Positioned, W: Widget<T>> Controller<T, W> for DragController {
                         self.child_dragged_from = Some(position.clone());
                         self.mouse_dragged_from = Some(mouse_event.window_pos);
                         ctx.set_active(true);
+                        ctx.request_focus();
 
                         if self.consume_mouse_events {
                             ctx.set_handled();
@@ -46,6 +48,12 @@ impl<T: Positioned, W: Widget<T>> Controller<T, W> for DragController {
             },
             Event::MouseMove(mouse_event) => {
                 if !mouse_event.buttons.contains(druid::MouseButton::Left) {
+                    if let Some(mouse_dragged_from) = self.mouse_dragged_from {
+                        if mouse_dragged_from != mouse_event.pos {
+                            ctx.record_undo_state();
+                        }
+                    }
+
                     ctx.set_active(false);
                     self.child_dragged_from = None;
                     self.mouse_dragged_from = None;
