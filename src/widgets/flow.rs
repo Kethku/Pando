@@ -167,14 +167,13 @@ impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(Point, ImHash
                 } else if let Some((dependency_id, dependency_point_index)) = command.get(LINK_FINISHED).cloned() {
                     if let Some((linking_id, linking_point_index)) = self.linking_pin {
                         let (_, child_data) = data;
-                        let linking_pin = child_data
-                            .get_mut(&linking_id)
-                            .expect("Could not find linking pin");
-                        linking_pin.toggle_dependency(&FlowDependency {
-                            local_link_index: linking_point_index,
-                            dependency_id,
-                            dependency_link_index: dependency_point_index
-                        });
+                        if let Some(linking_pin) = child_data.get_mut(&linking_id) {
+                            linking_pin.toggle_dependency(&FlowDependency {
+                                local_link_index: linking_point_index,
+                                dependency_id,
+                                dependency_link_index: dependency_point_index
+                            });
+                        }
                     }
 
                     self.linking_pin = None;
@@ -252,26 +251,27 @@ impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(Point, ImHash
         for (child_id, child_data) in data.1.iter() {
             if let Some(child_link_points) = self.link_points.get(child_id) {
                 for dependency in child_data.get_dependencies().iter() {
-                    let child_link_point = child_link_points.get(dependency.local_link_index).expect("Could not get child link point");
-                    if let Some(dependency_link_points) = self.link_points.get(&dependency.dependency_id) {
-                        let dependency_link_point = dependency_link_points.get(dependency.dependency_link_index).expect("Could not get dependency link point");
-
-                        let bez = bez_from_to(
-                            child_link_point.position, child_link_point.direction, 
-                            dependency_link_point.position, dependency_link_point.direction.into());
-                        ctx.stroke(bez, &env.get(theme::BORDER_LIGHT), 2.0);
+                    if let Some(child_link_point) = child_link_points.get(dependency.local_link_index) {
+                        if let Some(dependency_link_points) = self.link_points.get(&dependency.dependency_id) {
+                            if let Some(dependency_link_point) = dependency_link_points.get(dependency.dependency_link_index) {
+                                let bez = bez_from_to(
+                                    child_link_point.position, child_link_point.direction, 
+                                    dependency_link_point.position, dependency_link_point.direction.into());
+                                ctx.stroke(bez, &env.get(theme::BORDER_LIGHT), 2.0);
+                            }
+                        }
                     }
                 }
             }
         }
 
         if let Some((linking_id, linking_point_index)) = &self.linking_pin {
-            let linking_point = self.link_points
-                .get(linking_id).expect("Could not get linking points")
-                .get(*linking_point_index).expect("Could not get linking point");
-
-            let bez = bez_from_to(linking_point.position, linking_point.direction, self.mouse_position, None);
-            ctx.stroke(bez, &env.get(theme::BORDER_DARK), 2.0);
+            if let Some(linking_point) = self.link_points
+                .get(linking_id)
+                .and_then(|link_points| link_points.get(*linking_point_index)) {
+                let bez = bez_from_to(linking_point.position, linking_point.direction, self.mouse_position, None);
+                ctx.stroke(bez, &env.get(theme::BORDER_DARK), 2.0);
+            }
         }
 
         self.pin_board.paint(ctx, data, env);

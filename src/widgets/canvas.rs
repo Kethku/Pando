@@ -95,8 +95,9 @@ impl<C: Data + Positioned + Identifiable + PartialEq, W: Widget<C>> Widget<(Poin
         let (_, data_map) = data;
 
         for (id, child_data) in data_map.iter_mut() {
-            let child_widget = self.children.get_mut(&id).expect("canvas widgets out of sync");
-            child_widget.event(ctx, event, child_data, env);
+            if let Some(child_widget) = self.children.get_mut(&id) {
+                child_widget.event(ctx, event, child_data, env);
+            }
         }
     }
 
@@ -109,8 +110,9 @@ impl<C: Data + Positioned + Identifiable + PartialEq, W: Widget<C>> Widget<(Poin
         }
 
         for (id, child_data) in data_map {
-            let child_widget = self.children.get_mut(&id).expect("canvas widgets out of sync");
-            child_widget.lifecycle(ctx, event, child_data, env);
+            if let Some(child_widget) = self.children.get_mut(&id) {
+                child_widget.lifecycle(ctx, event, child_data, env);
+            }
         }
     }
 
@@ -120,8 +122,9 @@ impl<C: Data + Positioned + Identifiable + PartialEq, W: Widget<C>> Widget<(Poin
         // this way we avoid sending update to newly added children, at the cost
         // of potentially updating children that are going to be removed.
         for (id, child_data) in data_map {
-            let child_widget = self.children.get_mut(&id).expect("canvas widgets out of sync");
-            child_widget.update(ctx, child_data, env);
+            if let Some(child_widget) = self.children.get_mut(&id) {
+                child_widget.update(ctx, child_data, env);
+            }
         }
 
         if self.update_widgets(data_map, env) {
@@ -136,13 +139,13 @@ impl<C: Data + Positioned + Identifiable + PartialEq, W: Widget<C>> Widget<(Poin
         let child_bc = BoxConstraints::UNBOUNDED;
 
         for (id, child_data) in data_map {
-            let child_widget = self.children.get_mut(&id).expect("canvas widgets out of sync");
-
-            let child_size = child_widget.layout(ctx, &child_bc, child_data, env);
-            let child_top_left = child_data.get_top_left_position(child_size);
-            let offset_position = child_top_left + offset.to_vec2();
-            new_child_positions.insert(child_data.get_id(), Rect::from_origin_size(offset_position, child_size));
-            child_widget.set_origin(ctx, child_data, env, offset_position);
+            if let Some(child_widget) = self.children.get_mut(&id) {
+                let child_size = child_widget.layout(ctx, &child_bc, child_data, env);
+                let child_top_left = child_data.get_top_left_position(child_size);
+                let offset_position = child_top_left + offset.to_vec2();
+                new_child_positions.insert(child_data.get_id(), Rect::from_origin_size(offset_position, child_size));
+                child_widget.set_origin(ctx, child_data, env, offset_position);
+            } 
         }
 
         self.child_positions = new_child_positions;
@@ -153,8 +156,9 @@ impl<C: Data + Positioned + Identifiable + PartialEq, W: Widget<C>> Widget<(Poin
         let (_, data_map) = data;
 
         for (id, child_data) in data_map {
-            let child_widget = self.children.get_mut(&id).expect("canvas widgets out of sync");
-            child_widget.paint(ctx, child_data, env);
+            if let Some(child_widget) = self.children.get_mut(&id) {
+                child_widget.paint(ctx, child_data, env);
+            } 
         }
     }
 }
