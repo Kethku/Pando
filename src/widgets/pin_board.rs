@@ -42,7 +42,7 @@ impl<C: Data + Pinnable + PartialEq, W: Widget<C>> PinBoard<C, W> {
         self.canvas.widget_mut()
     }
 
-    pub fn new_pin(&mut self, position: Point, data: &(Point, ImHashMap<u64, C>)) -> (u64, C) {
+    pub fn new_pin(&self, position: Point, data: &(Point, ImHashMap<u64, C>)) -> (u64, C) {
         let (offset, children) = data;
         let highest_pin_id = children.keys().max().unwrap_or(&0);
 

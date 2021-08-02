@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::cmp::Ordering;
 use std::fmt::Debug;
 
 use druid::{
@@ -67,20 +68,42 @@ impl LinkPoint {
     }
 }
 
-#[derive(Clone, Data, Debug, Eq, Hash,  PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Data, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct FlowDependency {
-    pub local_link_index: usize,
-    pub dependency_id: u64,
-    pub dependency_link_index: usize,
+    pub from_id: u64,
+    pub from_link_index: usize,
+    pub to_id: u64,
+    pub to_link_index: usize,
+}
+
+impl FlowDependency {
+    fn try_new(first: (u64, usize), second: (u64, usize)) -> Option<Self> {
+        let (first_id, first_link_index) = first;
+        let (second_id, second_link_index) = second;
+        match first_id.cmp(&second_id) {
+            Ordering::Less => {
+                Some(FlowDependency {
+                    from_id: first_id,
+                    from_link_index: first_link_index,
+                    to_id: second_id,
+                    to_link_index: second_link_index,
+                })
+            },
+            Ordering::Greater => {
+                Some(FlowDependency {
+                    from_id: second_id,
+                    from_link_index: second_link_index,
+                    to_id: first_id,
+                    to_link_index: first_link_index,
+                })
+            },
+            Ordering::Equal => None
+        }
+    }
 }
 
 pub trait Flowable : Pinnable {
     fn get_link_points(&self, size: Size) -> Vec<LinkPoint>;
-
-    fn get_dependencies(&self) -> ImHashSet<FlowDependency>;
-    fn toggle_dependency(&mut self, dependency: &FlowDependency);
-    fn break_dependencies_to(&mut self, dependency_id: u64);
-
     fn default_link_index(&self) -> usize {
         // Default to the first dependency
         0
@@ -136,25 +159,39 @@ impl<C: Data + Debug + Flowable + PartialEq, W: Widget<C>> Flow<C, W> {
         self.pin_board.widget_mut()
     }
 
-    fn add_dependent_pin(&mut self, position: Point, data: &mut(Point, ImHashMap<u64, C>), dependency_id: u64, dependency_link_index: usize) {
-        let pin_board = self.pin_board.widget_mut();
-        let (pin_id, mut new_pin) = pin_board.new_pin(position, data);
-        let default_link_index = new_pin.default_link_index();
-        let dependency = FlowDependency {
-            local_link_index: default_link_index,
-            dependency_id,
-            dependency_link_index,
-        };
+    fn toggle_dependency(&mut self, data: &mut (ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), dependency: FlowDependency) {
+        let (dependencies, _) = data; 
+        if dependencies.contains(&dependency) {
+            dependencies.remove(&dependency);
+        } else {
+            dependencies.insert(dependency);
+        }
+    }
 
-        new_pin.toggle_dependency(&dependency);
+    fn add_dependent_pin(&mut self, position: Point, data: &mut (ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), dependency_id: u64, dependency_link_index: usize) {
+        let (dependencies, pin_board_data) = data;
+        let pin_board = self.pin_board.widget_mut();
+        let first = (dependency_id, dependency_link_index);
+        let (pin_id, new_pin) = pin_board.new_pin(position, pin_board_data);
+        let default_link_index = new_pin.default_link_index();
+        let second = (pin_id, default_link_index);
+        
+        if let Some(dependency) = FlowDependency::try_new(first, second) {
+            self.toggle_dependency(data, dependency);
+        }
         let (_, child_data_map) = data;
-        child_data_map.insert(pin_id, new_pin);
+    }
+
+    fn break_dependencies_to(&mut self, data: &mut (ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), pin_id: u64) {
+        let (dependencies, _) = data;
+        dependencies.retain(|dependency| dependency.from_id != pin_id && dependency.to_id != pin_id);
     }
 }
 
-impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(Point, ImHashMap<u64, C>)> for Flow<C, W> {
-    fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut (Point, ImHashMap<u64, C>), env: &Env) {
-        self.pin_board.event(ctx, ev, data, env);
+impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>))> for Flow<C, W> {
+    fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut (ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), env: &Env) {
+        let (flow_dependencies, pin_board_data) = data;
+        self.pin_board.event(ctx, ev, pin_board_data, env);
 
         if ctx.is_handled() {
             return;
@@ -164,15 +201,10 @@ impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(Point, ImHash
             Event::Command(command) => {
                 if let Some((dependency_id, link_index)) = command.get(LINK_STARTED).cloned() {
                     self.linking_pin = Some((dependency_id, link_index))
-                } else if let Some((dependency_id, dependency_point_index)) = command.get(LINK_FINISHED).cloned() {
-                    if let Some((linking_id, linking_point_index)) = self.linking_pin {
-                        let (_, child_data) = data;
-                        if let Some(linking_pin) = child_data.get_mut(&linking_id) {
-                            linking_pin.toggle_dependency(&FlowDependency {
-                                local_link_index: linking_point_index,
-                                dependency_id,
-                                dependency_link_index: dependency_point_index
-                            });
+                } else if let Some(first) = command.get(LINK_FINISHED).cloned() {
+                    if let Some(second) = self.linking_pin {
+                        if let Some(dependency) = FlowDependency::try_new(first, second) {
+                            self.toggle_dependency(data, dependency);
                         }
                     }
 
@@ -195,10 +227,10 @@ impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(Point, ImHash
                     }
                 } else if mouse_event.button.is_right() {
                     if let Some(pin_id_under_mouse) = &pin_board.pin_id_under_mouse {
-                        let (_, child_data_map) = data;
+                        let (_, child_data_map) = pin_board_data;
 
                         for (_, child) in child_data_map.iter_mut() {
-                            child.break_dependencies_to(*pin_id_under_mouse);
+                            self.break_dependencies_to(data, *pin_id_under_mouse);
                         }
 
                         ctx.replace_undo_state();
@@ -209,15 +241,17 @@ impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(Point, ImHash
         }
     }
 
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, ev: &LifeCycle, data: &(Point, ImHashMap<u64, C>), env: &Env) {
-        self.pin_board.lifecycle(ctx, ev, data, env);
+    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, ev: &LifeCycle, data: &(ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), env: &Env) {
+        let (_, pin_board_data) = data;
+        self.pin_board.lifecycle(ctx, ev, pin_board_data, env);
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &(Point, ImHashMap<u64, C>), data: &(Point, ImHashMap<u64, C>), env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &(ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), data: &(ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), env: &Env) {
+        let (_, pin_board_data) = data;
         let canvas = self.pin_board.widget().canvas.widget();
 
         let mut new_link_points = HashMap::new();
-        let (_, child_data_map) = data;
+        let (_, child_data_map) = pin_board_data;
 
         for (id, child) in child_data_map {
             if let Some(child_position) = canvas.get_child_position(&id) {
@@ -240,29 +274,34 @@ impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(Point, ImHash
 
         self.link_points = new_link_points;
 
-        self.pin_board.update(ctx, data, env);
+        self.pin_board.update(ctx, pin_board_data, env);
     }
 
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &(Point, ImHashMap<u64, C>), env: &Env) -> Size {
-        self.pin_board.layout(ctx, bc, data, env)
+    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &(ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), env: &Env) -> Size {
+        let (_, pin_board_data) = data;
+        self.pin_board.layout(ctx, bc, pin_board_data, env)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &(Point, ImHashMap<u64, C>), env: &Env) {
-        for (child_id, child_data) in data.1.iter() {
-            if let Some(child_link_points) = self.link_points.get(child_id) {
-                for dependency in child_data.get_dependencies().iter() {
-                    if let Some(child_link_point) = child_link_points.get(dependency.local_link_index) {
-                        if let Some(dependency_link_points) = self.link_points.get(&dependency.dependency_id) {
-                            if let Some(dependency_link_point) = dependency_link_points.get(dependency.dependency_link_index) {
-                                let bez = bez_from_to(
-                                    child_link_point.position, child_link_point.direction, 
-                                    dependency_link_point.position, dependency_link_point.direction.into());
-                                ctx.stroke(bez, &env.get(theme::BORDER_LIGHT), 2.0);
-                            }
-                        }
-                    }
-                }
-            }
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &(ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), env: &Env) {
+        let (dependencies, pin_board_data) = data;
+        for dependency in dependencies {
+            // immediately executed function expression to enable try operator
+            || -> Option<()> {
+                let from_link_point = self.link_points
+                    .get(&dependency.from_id)?
+                    .get(dependency.from_link_index)?;
+
+                let to_link_point = self.link_points
+                    .get(&dependency.to_id)?
+                    .get(dependency.to_link_index)?;
+
+                let bez = bez_from_to(
+                    from_link_point.position, from_link_point.direction, 
+                    to_link_point.position, to_link_point.direction.into());
+                ctx.stroke(bez, &env.get(theme::BORDER_LIGHT), 2.0);
+
+                Some(())
+            }();
         }
 
         if let Some((linking_id, linking_point_index)) = &self.linking_pin {
@@ -274,6 +313,6 @@ impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(Point, ImHash
             }
         }
 
-        self.pin_board.paint(ctx, data, env);
+        self.pin_board.paint(ctx, pin_board_data, env);
     }
 }

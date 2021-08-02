@@ -27,7 +27,6 @@ pub struct TodoItem {
     pub position: Point,
     pub name: String,
     pub status: TodoStatus,
-    pub dependencies: HashSet<FlowDependency>,
     #[serde(default)]
     pub highlighted: bool
 }
@@ -67,7 +66,6 @@ impl Pinnable for TodoItem {
             position,
             name: "".to_owned(),
             status: TodoStatus::Authoring,
-            dependencies: HashSet::new(),
             highlighted: false,
         }
     }
@@ -85,22 +83,6 @@ impl Flowable for TodoItem {
                 direction: Direction::Down
             }
         ]
-    }
-
-    fn get_dependencies(&self) -> HashSet<FlowDependency> {
-        self.dependencies.clone()
-    }
-
-    fn toggle_dependency(&mut self, dependency: &FlowDependency) {
-        if self.dependencies.contains(dependency) {
-            self.dependencies.remove(dependency);
-        } else {
-            self.dependencies.insert(dependency.clone());
-        }
-    }
-
-    fn break_dependencies_to(&mut self, dependency_id: u64) {
-        self.dependencies.retain(|dependency| dependency.dependency_id != dependency_id);
     }
 }
 
