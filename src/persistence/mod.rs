@@ -13,7 +13,7 @@ use dirs::home_dir;
 use crate::AppData;
 use v0::{V0AppData, upgrade_v0_to_v1};
 use v1::{V1AppData, upgrade_v1_to_v2};
-use v2::{V0AppData, upgrade_v2_to_current};
+use v2::{V2AppData, upgrade_v2_to_current};
 
 fn data_path() -> PathBuf {
     let mut path = home_dir().expect("Could not read home directory");

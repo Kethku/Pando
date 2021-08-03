@@ -3,48 +3,20 @@
 mod widgets;
 mod controllers;
 mod persistence;
+mod app_data;
 
 use druid::{
-    AppLauncher, Data, LocalizedString, Point, WindowDesc, WidgetExt
+    AppLauncher, LocalizedString, WindowDesc, WidgetExt
 };
-use druid::im::{HashMap as ImHashMap, HashSet as ImHashSet};
-use serde::{Serialize, Deserialize};
 
-use widgets::{
-    canvas::Positioned,
-    flow::{Flow, FlowDependency},
-    todo::{todo, TodoItem},
-    dot_grid::dot_grid
-};
+use app_data::AppData;
 use controllers::*;
 use persistence::read_or;
-
-#[derive(Clone, Data, Debug, Serialize, Deserialize)]
-pub struct AppData {
-    position: Point,
-    dependencies: ImHashSet<FlowDependency>,
-    todos: ImHashMap<u64, TodoItem>,
-}
-
-impl AppData {
-    fn new() -> Self {
-        AppData {
-            position: Point::ZERO,
-            dependencies: ImHashSet::new(),
-            todos: ImHashMap::new()
-        }
-    }
-}
-
-impl Positioned for AppData {
-    fn get_position(&self) -> Point {
-        self.position
-    }
-
-    fn set_position(&mut self, new_position: Point) {
-        self.position = new_position;
-    }
-}
+use widgets::{
+    flow::Flow,
+    todo::todo,
+    dot_grid::dot_grid
+};
 
 fn main() {
     let window = WindowDesc::new(|| Flow::new(|| todo())

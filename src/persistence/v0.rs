@@ -3,10 +3,7 @@ use druid::im::{Vector as ImVector, HashSet};
 use serde::{Serialize, Deserialize};
 
 use super::v1::{V1AppData, V1FlowDependency, V1TodoItem};
-use crate::widgets::{
-    flow::FlowDependency,
-    todo::TodoStatus,
-};
+use crate::widgets::todo::TodoStatus;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct V0TodoItem {

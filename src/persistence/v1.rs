@@ -3,11 +3,7 @@ use druid::im::{Vector as ImVector, HashMap as ImHashMap, HashSet as ImHashSet};
 use serde::{Serialize, Deserialize};
 
 use super::v2::V2AppData;
-use crate::AppData;
-use crate::widgets::{
-    canvas::Identifiable,
-    todo::TodoItem,
-};
+use crate::widgets::todo::TodoStatus;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct V1FlowDependency {

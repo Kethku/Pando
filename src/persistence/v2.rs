@@ -1,11 +1,10 @@
 use druid::Point;
 use druid::im::{HashMap as ImHashMap, HashSet as ImHashSet};
 
-use super::v1::{V1AppData, V1FlowDependency, V1TodoItem};
+use super::v1::V1TodoItem;
 use crate::AppData;
 use crate::widgets::{
     flow::FlowDependency,
-    canvas::Identifiable,
     todo::TodoItem,
 };
 
@@ -28,8 +27,8 @@ pub fn upgrade_v2_to_current(v2_state: V2AppData) -> AppData {
         todos.insert(v2_todo.id, TodoItem {
             id: v2_todo.id,
             position: v2_todo.position,
-            name: v2_todo.name,
-            status: v2_todo.status,
+            name: v2_todo.name.clone(),
+            status: v2_todo.status.clone(),
             highlighted: v2_todo.highlighted
         });
     }

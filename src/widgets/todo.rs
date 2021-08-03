@@ -1,12 +1,11 @@
 use druid::{Data, Lens, Insets, Point, Size, Widget, WidgetExt};
-use druid::im::HashSet;
 use druid::theme;
 use druid::widget::*;
 use serde::{Serialize, Deserialize};
 
 use super::canvas::{Positioned, Identifiable};
 use super::pin_board::Pinnable;
-use super::flow::{Flowable, FlowDependency, LinkPoint, Direction};
+use super::flow::{Flowable, LinkPoint, Direction};
 use crate::controllers::{
     DraggableWidgetExt,
     PandoWidgetExt,
