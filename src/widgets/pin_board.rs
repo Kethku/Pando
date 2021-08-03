@@ -8,14 +8,21 @@ use druid::widget::*;
 use druid::widget::prelude::*;
 
 use super::canvas::{Canvas, Positioned, Identifiable};
+use crate::AppData;
 use crate::controllers::RecordUndoStateExt;
 
 pub trait Pinnable : Positioned + Identifiable {
     fn new(position: Point, id: u64) -> Self;
 }
 
+pub trait PinBoardData<C> : Positioned {
+    fn add_pin(&mut self, new_pin: C);
+    fn remove_pin(&mut self, pin_id: u64);
+    fn pins(&self) -> Box<dyn Iterator<Item=C> + '_>;
+}
+
 pub struct PinBoard<C, W> {
-    pub canvas: WidgetPod<(Point, ImHashMap<u64, C>), Canvas<C, W>>,
+    pub canvas: WidgetPod<AppData, Canvas<C, W>>,
 
     pub mouse_down_position: Option<Point>,
     pub pin_id_under_mouse: Option<u64>,
@@ -42,7 +49,7 @@ impl<C: Data + Pinnable + PartialEq, W: Widget<C>> PinBoard<C, W> {
         self.canvas.widget_mut()
     }
 
-    pub fn new_pin(&self, position: Point, data: &(Point, ImHashMap<u64, C>)) -> (u64, C) {
+    pub fn new_pin(&self, position: Point, data: &AppData) -> (u64, C) {
         let (offset, children) = data;
         let highest_pin_id = children.keys().max().unwrap_or(&0);
 
@@ -51,15 +58,15 @@ impl<C: Data + Pinnable + PartialEq, W: Widget<C>> PinBoard<C, W> {
         (pin_id, C::new(offset_position, pin_id))
     } 
 
-    fn add_pin(&mut self, position: Point, data: &mut(Point, ImHashMap<u64, C>)) {
+    fn add_pin(&mut self, position: Point, data: &mut AppData) {
         let (pin_id, new_pin) = self.new_pin(position, data);
         let (_, child_data_map) = data;
         child_data_map.insert(pin_id, new_pin);
     }
 }
 
-impl<C: Data + Debug + Pinnable + PartialEq, W: Widget<C>> Widget<(Point, ImHashMap<u64, C>)> for PinBoard<C, W> {
-    fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut (Point, ImHashMap<u64, C>), env: &Env) {
+impl<C: Data + Debug + Pinnable + PartialEq, W: Widget<C>> Widget<AppData> for PinBoard<C, W> {
+    fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut AppData, env: &Env) {
         self.canvas.event(ctx, ev, data, env);
 
         if ctx.is_handled() {
@@ -99,19 +106,19 @@ impl<C: Data + Debug + Pinnable + PartialEq, W: Widget<C>> Widget<(Point, ImHash
         }
     }
 
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, ev: &LifeCycle, data: &(Point, ImHashMap<u64, C>), env: &Env) {
+    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, ev: &LifeCycle, data: &AppData, env: &Env) {
         self.canvas.lifecycle(ctx, ev, data, env);
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &(Point, ImHashMap<u64, C>), data: &(Point, ImHashMap<u64, C>), env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &AppData, data: &AppData, env: &Env) {
         self.canvas.update(ctx, data, env);
     }
 
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &(Point, ImHashMap<u64, C>), env: &Env) -> Size {
+    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &AppData, env: &Env) -> Size {
         self.canvas.layout(ctx, bc, data, env)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &(Point, ImHashMap<u64, C>), env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &AppData, env: &Env) {
         self.canvas.paint(ctx, data, env);
     }
 }

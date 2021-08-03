@@ -77,7 +77,7 @@ pub struct FlowDependency {
 }
 
 impl FlowDependency {
-    fn try_new(first: (u64, usize), second: (u64, usize)) -> Option<Self> {
+    pub fn try_new(first: (u64, usize), second: (u64, usize)) -> Option<Self> {
         let (first_id, first_link_index) = first;
         let (second_id, second_link_index) = second;
         match first_id.cmp(&second_id) {
@@ -120,7 +120,7 @@ fn bez_from_to(from: Point, from_dir: Direction, to: Point, to_dir: Option<Direc
 }
 
 pub struct Flow<C, W> {
-    pub pin_board: WidgetPod<(Point, ImHashMap<u64, C>), PinBoard<C, LinkPoints<C, W>>>,
+    pub pin_board: WidgetPod<AppData, PinBoard<C, LinkPoints<C, W>>>,
 
     linking_pin: Option<(u64, usize)>,
     mouse_position: Point,
@@ -159,7 +159,7 @@ impl<C: Data + Debug + Flowable + PartialEq, W: Widget<C>> Flow<C, W> {
         self.pin_board.widget_mut()
     }
 
-    fn toggle_dependency(&mut self, data: &mut (ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), dependency: FlowDependency) {
+    fn toggle_dependency(&mut self, data: &mut AppData, dependency: FlowDependency) {
         let (dependencies, _) = data; 
         if dependencies.contains(&dependency) {
             dependencies.remove(&dependency);
@@ -168,7 +168,7 @@ impl<C: Data + Debug + Flowable + PartialEq, W: Widget<C>> Flow<C, W> {
         }
     }
 
-    fn add_dependent_pin(&mut self, position: Point, data: &mut (ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), dependency_id: u64, dependency_link_index: usize) {
+    fn add_dependent_pin(&mut self, position: Point, data: &mut AppData, dependency_id: u64, dependency_link_index: usize) {
         let (dependencies, pin_board_data) = data;
         let pin_board = self.pin_board.widget_mut();
         let first = (dependency_id, dependency_link_index);
@@ -182,14 +182,14 @@ impl<C: Data + Debug + Flowable + PartialEq, W: Widget<C>> Flow<C, W> {
         let (_, child_data_map) = data;
     }
 
-    fn break_dependencies_to(&mut self, data: &mut (ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), pin_id: u64) {
+    fn break_dependencies_to(&mut self, data: &mut AppData, pin_id: u64) {
         let (dependencies, _) = data;
         dependencies.retain(|dependency| dependency.from_id != pin_id && dependency.to_id != pin_id);
     }
 }
 
-impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>))> for Flow<C, W> {
-    fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut (ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), env: &Env) {
+impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<AppData> for Flow<C, W> {
+    fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut AppData, env: &Env) {
         let (flow_dependencies, pin_board_data) = data;
         self.pin_board.event(ctx, ev, pin_board_data, env);
 
@@ -241,12 +241,12 @@ impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(ImHashSet<Flo
         }
     }
 
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, ev: &LifeCycle, data: &(ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), env: &Env) {
+    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, ev: &LifeCycle, data: &AppData, env: &Env) {
         let (_, pin_board_data) = data;
         self.pin_board.lifecycle(ctx, ev, pin_board_data, env);
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &(ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), data: &(ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &AppData, data: &AppData, env: &Env) {
         let (_, pin_board_data) = data;
         let canvas = self.pin_board.widget().canvas.widget();
 
@@ -277,12 +277,12 @@ impl<C: Data + Flowable + PartialEq + Debug, W: Widget<C>> Widget<(ImHashSet<Flo
         self.pin_board.update(ctx, pin_board_data, env);
     }
 
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &(ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), env: &Env) -> Size {
+    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &AppData, env: &Env) -> Size {
         let (_, pin_board_data) = data;
         self.pin_board.layout(ctx, bc, pin_board_data, env)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &(ImHashSet<FlowDependency>, (Point, ImHashMap<u64, C>)), env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &AppData, env: &Env) {
         let (dependencies, pin_board_data) = data;
         for dependency in dependencies {
             // immediately executed function expression to enable try operator

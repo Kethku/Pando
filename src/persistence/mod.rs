@@ -1,5 +1,6 @@
 mod v0;
 mod v1;
+mod v2;
 
 use std::fs::{
     File, remove_file
@@ -11,7 +12,8 @@ use dirs::home_dir;
 
 use crate::AppData;
 use v0::{V0AppData, upgrade_v0_to_v1};
-use v1::{V1AppData, upgrade_v1_to_current};
+use v1::{V1AppData, upgrade_v1_to_v2};
+use v2::{V0AppData, upgrade_v2_to_current};
 
 fn data_path() -> PathBuf {
     let mut path = home_dir().expect("Could not read home directory");
@@ -33,13 +35,14 @@ pub fn save(data: AppData) {
 
 pub fn deserialize(json: &str) -> AppData {
     serde_json::from_str::<AppData>(json).unwrap_or_else(|_| {
-        let v1_app_data = serde_json::from_str::<V1AppData>(json).unwrap_or_else(|_| {
-            let v0_app_data = serde_json::from_str::<V0AppData>(json).expect("Invalid save format");
-
-            upgrade_v0_to_v1(v0_app_data)
+        let v2_app_data = serde_json::from_str::<V2AppData>(json).unwrap_or_else(|_| {
+            let v1_app_data = serde_json::from_str::<V1AppData>(json).unwrap_or_else(|_| {
+                let v0_app_data = serde_json::from_str::<V0AppData>(json).expect("Invalid save format");
+                upgrade_v0_to_v1(v0_app_data)
+            });
+            upgrade_v1_to_v2(v1_app_data)
         });
-
-        upgrade_v1_to_current(v1_app_data)
+        upgrade_v2_to_current(v2_app_data)
     })
 }
 
