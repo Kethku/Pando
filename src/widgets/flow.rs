@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::cmp::Ordering;
 use std::fmt::Debug;
 
@@ -11,7 +11,10 @@ use druid::widget::*;
 use druid::widget::prelude::*;
 use serde::{Serialize, Deserialize};
 
-use crate::controllers::RecordUndoStateExt;
+use crate::controllers::{
+    draggable::DRAGGING,
+    RecordUndoStateExt
+};
 use super::canvas::{Canvas, CanvasData};
 use super::pin_board::{PinBoard, PinBoardData, Pinnable};
 use super::link_points::{LinkPoints, LINK_POINT_SIZE};
@@ -130,6 +133,7 @@ pub struct Flow<C, D, W> {
 
     linking_pin: Option<(u64, usize)>,
     mouse_position: Point,
+    shift_held: bool,
 
     link_points: HashMap<u64, Vec<LinkPoint>>,
 }
@@ -144,6 +148,7 @@ impl<C: Data + Debug + Flowable + PartialEq, D: Data + CanvasData<C> + PinBoardD
 
             linking_pin: None,
             mouse_position: Point::ZERO,
+            shift_held: false,
 
             link_points: HashMap::new(),
         }
@@ -199,6 +204,38 @@ impl<C: Data + Debug + Flowable + PartialEq, D: Data + CanvasData<C> + PinBoardD
             data.remove_dependency(&dependency_to_remove);
         }
     }
+
+    fn connected_ids(&self, data: &D, id: u64) -> HashSet<u64> {
+        let mut result = HashSet::new();
+
+        let mut ids_to_search = vec![id];
+
+        while let Some(search_id) = ids_to_search.pop() {
+            for dependency in data.dependencies() {
+                if dependency.from_id == search_id && dependency.to_id != id {
+                    if result.insert(dependency.to_id) {
+                        ids_to_search.push(dependency.to_id);
+                    }
+                } else if dependency.to_id == search_id && dependency.from_id != id {
+                    if result.insert(dependency.from_id) {
+                        ids_to_search.push(dependency.from_id);
+                    }
+                }
+            }
+        }
+
+        result
+    }
+
+    fn move_connected(&self, data: &mut D, dragged_id: u64, delta: Vec2) {
+        let connected_ids = self.connected_ids(data, dragged_id);
+
+        for id in connected_ids {
+            if let Some(child) = data.get_child_mut(&id) {
+                child.set_position(child.get_position() + delta);
+            }
+        }
+    }
 }
 
 impl<C: Data + Flowable + PartialEq + Debug, D: Data + CanvasData<C> + PinBoardData<C> + FlowData, W: Widget<C>> Widget<D> for Flow<C, D, W> {
@@ -210,6 +247,9 @@ impl<C: Data + Flowable + PartialEq + Debug, D: Data + CanvasData<C> + PinBoardD
         }
 
         match ev {
+            Event::KeyDown(key_event) | Event::KeyUp(key_event) => {
+                self.shift_held = key_event.mods.shift()
+            },
             Event::Command(command) => {
                 if let Some((dependency_id, link_index)) = command.get(LINK_STARTED).cloned() {
                     self.linking_pin = Some((dependency_id, link_index))
@@ -223,6 +263,13 @@ impl<C: Data + Flowable + PartialEq + Debug, D: Data + CanvasData<C> + PinBoardD
                     self.linking_pin = None;
                 } else if command.is(LINK_STOPPED) {
                     self.linking_pin = None;
+                } else if let Some((dragged_data, delta)) = command.get(DRAGGING) {
+                    if self.shift_held {
+                        if let Some(dragged_data) = dragged_data.downcast_ref::<C>() {
+                            let dragged_id = dragged_data.get_id();
+                            self.move_connected(data, dragged_id, *delta);
+                        }
+                    }
                 }
             },
             Event::MouseMove(mouse_event) => {
