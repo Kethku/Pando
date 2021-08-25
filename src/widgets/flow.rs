@@ -5,8 +5,9 @@ use std::fmt::Debug;
 use druid::{
     Point, WidgetPod, Vec2, Selector
 };
-use druid::kurbo::CubicBez;
+use druid::kurbo::{CubicBez, Circle};
 use druid::theme;
+use druid::piet::StrokeStyle;
 use druid::widget::*;
 use druid::widget::prelude::*;
 use serde::{Serialize, Deserialize};
@@ -132,8 +133,10 @@ pub struct Flow<C, D, W> {
     pub pin_board: WidgetPod<D, PinBoard<C, D, LinkPoints<C, W>>>,
 
     linking_pin: Option<(u64, usize)>,
+    selection_radius: f64,
     mouse_position: Point,
     shift_held: bool,
+    ctrl_held: bool,
 
     link_points: HashMap<u64, Vec<LinkPoint>>,
 }
@@ -147,8 +150,10 @@ impl<C: Data + Debug + Flowable + PartialEq, D: Data + CanvasData<C> + PinBoardD
             pin_board: WidgetPod::new(pin_board),
 
             linking_pin: None,
+            selection_radius: 250.0,
             mouse_position: Point::ZERO,
             shift_held: false,
+            ctrl_held: false,
 
             link_points: HashMap::new(),
         }
@@ -227,10 +232,12 @@ impl<C: Data + Debug + Flowable + PartialEq, D: Data + CanvasData<C> + PinBoardD
         result
     }
 
-    fn move_connected(&self, data: &mut D, dragged_id: u64, delta: Vec2) {
-        let connected_ids = self.connected_ids(data, dragged_id);
+    fn selection_range_ids(&self, ids: HashSet<u64>) -> HashSet<u64> {
+        ids.into_iter().filter(|id| 
+    }
 
-        for id in connected_ids {
+    fn move_pins(&self, data: &mut D, pin_ids: HashSet<u64>, delta: Vec2) {
+        for id in pin_ids {
             if let Some(child) = data.get_child_mut(&id) {
                 child.set_position(child.get_position() + delta);
             }
@@ -242,14 +249,23 @@ impl<C: Data + Flowable + PartialEq + Debug, D: Data + CanvasData<C> + PinBoardD
     fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut D, env: &Env) {
         self.pin_board.event(ctx, ev, data, env);
 
+        match ev {
+            Event::MouseDown(mouse_event) | Event::MouseUp(mouse_event) | Event::MouseMove(mouse_event) => {
+                self.shift_held = mouse_event.mods.shift();
+                self.ctrl_held = mouse_event.mods.ctrl();
+            },
+            Event::KeyDown(key_event) | Event::KeyUp(key_event) => {
+                self.shift_held = key_event.mods.shift();
+                self.ctrl_held = key_event.mods.ctrl();
+            },
+            _ => {}
+        };
+
         if ctx.is_handled() {
             return;
         }
 
         match ev {
-            Event::KeyDown(key_event) | Event::KeyUp(key_event) => {
-                self.shift_held = key_event.mods.shift()
-            },
             Event::Command(command) => {
                 if let Some((dependency_id, link_index)) = command.get(LINK_STARTED).cloned() {
                     self.linking_pin = Some((dependency_id, link_index))
@@ -362,5 +378,12 @@ impl<C: Data + Flowable + PartialEq + Debug, D: Data + CanvasData<C> + PinBoardD
         }
 
         self.pin_board.paint(ctx, data, env);
+
+        if self.ctrl_held {
+            let selection_circle = Circle::new(self.mouse_position, self.selection_radius);
+            let mut style = StrokeStyle::new();
+            style.set_dash(vec![5.0, 5.0], 0.0);
+            ctx.stroke_styled(selection_circle, &env.get(theme::BORDER_LIGHT), 2.0, &style);
+        }
     }
 }

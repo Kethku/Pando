@@ -138,7 +138,7 @@ pub fn todo() -> impl Widget<TodoItem> {
             todo.progress();
             ctx.record_undo_state();
         })
-        .on_mouse_ctrl(|ctx, todo| {
+        .on_mouse_alt(|ctx, todo| {
             todo.highlighted = !todo.highlighted;
             ctx.record_undo_state();
         })
