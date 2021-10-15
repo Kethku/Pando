@@ -4,6 +4,7 @@ pub mod undo_root;
 pub mod handles_mouse;
 pub mod event_handler;
 pub mod life_cycle_handler;
+pub mod selection;
 
 use std::fmt::Debug;
 
@@ -19,6 +20,7 @@ use handles_mouse::HandlesMouse;
 use life_cycle_handler::LifeCycleHandler;
 use take_focus::TakeFocus;
 use undo_root::{UndoRoot, RECORD_UNDO_STATE, REPLACE_UNDO_STATE};
+use selection::{SelectionRoot, CLEAR_SELECTION};
 
 pub trait DraggableWidgetExt<T, W> where T: Data + Positioned, W: Widget<T> {
     fn draggable(self, handle_mouse_events: bool) -> ControllerHost<W, DragController>;
@@ -37,7 +39,10 @@ pub trait PandoWidgetExt<T, W> where T: Data, W: Widget<T> {
     fn on_mouse_right(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
     fn on_mouse_middle(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
     fn on_mouse_double(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
+    fn on_mouse_shift(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
     fn on_mouse_ctrl(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
+    fn on_mouse_alt(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
+    fn on_clear_selection(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>>;
     fn take_focus(self) -> ControllerHost<W, TakeFocus>;
     fn handles_mouse(self) -> ControllerHost<W, HandlesMouse>;
 }
@@ -103,10 +108,44 @@ impl<T: Data + Debug + Send + Serialize, W: Widget<T> + 'static> PandoWidgetExt<
         }))
     }
 
+    fn on_mouse_shift(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>> {
+        self.controller(EventHandler::new(callback, true, false, |_, event| {
+            if let Event::MouseDown(mouse_event) = event {
+                mouse_event.button.is_left() && mouse_event.mods.shift() && mouse_event.count == 1
+            } else {
+                false
+            }
+        }))
+    }
+
     fn on_mouse_ctrl(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>> {
         self.controller(EventHandler::new(callback, true, false, |_, event| {
             if let Event::MouseDown(mouse_event) = event {
                 mouse_event.button.is_left() && mouse_event.mods.ctrl() && mouse_event.count == 1
+            } else {
+                false
+            }
+        }))
+    }
+
+    fn on_mouse_alt(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>> {
+        self.controller(EventHandler::new(callback, true, false, |_, event| {
+            if let Event::MouseDown(mouse_event) = event {
+                mouse_event.button.is_left() && mouse_event.mods.alt() && mouse_event.count == 1
+            } else {
+                false
+            }
+        }))
+    }
+
+    fn on_clear_selection(self, callback: impl Fn(&mut EventCtx, &mut T) -> () + 'static) -> ControllerHost<W, EventHandler<T>> {
+        self.controller(EventHandler::new(callback, false, false, |_, event| {
+            if let Event::Command(command) = event {
+                if command.is(CLEAR_SELECTION) {
+                    true
+                } else {
+                    false
+                }
             } else {
                 false
             }
@@ -147,14 +186,17 @@ impl RecordUndoStateExt for UpdateCtx<'_, '_> {
     }
 }
 
-
 pub trait AppDataExt<W> where W: Widget<AppData> {
     fn undo_root(self) -> ControllerHost<W, UndoRoot>;
+    fn selection_root(self) -> ControllerHost<W, SelectionRoot>;
 }
-
 
 impl<W: Widget<AppData> + 'static> AppDataExt<W> for W {
     fn undo_root(self) -> ControllerHost<W, UndoRoot> {
         self.controller(UndoRoot::new())
+    }
+
+    fn selection_root(self) -> ControllerHost<W, SelectionRoot> {
+        self.controller(SelectionRoot { })
     }
 }

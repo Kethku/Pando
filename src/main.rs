@@ -23,6 +23,7 @@ fn main() {
             .background(dot_grid())
             .draggable(true)
             .undo_root()
+            .selection_root()
     ).title(LocalizedString::new("Pando"));
     AppLauncher::with_window(window)
         .launch(read_or(AppData::new()))

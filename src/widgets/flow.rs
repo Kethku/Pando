@@ -133,12 +133,16 @@ pub struct Flow<C, D, W> {
 
     linking_pin: Option<(u64, usize)>,
     mouse_position: Point,
-    shift_held: bool,
+    ctrl_held: bool,
 
     link_points: HashMap<u64, Vec<LinkPoint>>,
 }
 
-impl<C: Data + Debug + Flowable + PartialEq, D: Data + CanvasData<C> + PinBoardData<C> + FlowData, W: Widget<C>> Flow<C, D, W> {
+impl<
+    C: Data + Debug + Flowable + PartialEq, 
+    D: Data + CanvasData<C> + PinBoardData<C> + FlowData, 
+    W: Widget<C>
+> Flow<C, D, W> {
     pub fn new(
         new_widget: impl Fn() -> W + 'static,
     ) -> Flow<C, D, W> {
@@ -148,7 +152,7 @@ impl<C: Data + Debug + Flowable + PartialEq, D: Data + CanvasData<C> + PinBoardD
 
             linking_pin: None,
             mouse_position: Point::ZERO,
-            shift_held: false,
+            ctrl_held: false,
 
             link_points: HashMap::new(),
         }
@@ -238,7 +242,11 @@ impl<C: Data + Debug + Flowable + PartialEq, D: Data + CanvasData<C> + PinBoardD
     }
 }
 
-impl<C: Data + Flowable + PartialEq + Debug, D: Data + CanvasData<C> + PinBoardData<C> + FlowData, W: Widget<C>> Widget<D> for Flow<C, D, W> {
+impl<
+    C: Data + Flowable + PartialEq + Debug, 
+    D: Data + CanvasData<C> + PinBoardData<C> + FlowData, 
+    W: Widget<C>
+> Widget<D> for Flow<C, D, W> {
     fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut D, env: &Env) {
         self.pin_board.event(ctx, ev, data, env);
 
@@ -248,7 +256,7 @@ impl<C: Data + Flowable + PartialEq + Debug, D: Data + CanvasData<C> + PinBoardD
 
         match ev {
             Event::KeyDown(key_event) | Event::KeyUp(key_event) => {
-                self.shift_held = key_event.mods.shift()
+                self.ctrl_held = key_event.mods.ctrl()
             },
             Event::Command(command) => {
                 if let Some((dependency_id, link_index)) = command.get(LINK_STARTED).cloned() {
@@ -264,7 +272,7 @@ impl<C: Data + Flowable + PartialEq + Debug, D: Data + CanvasData<C> + PinBoardD
                 } else if command.is(LINK_STOPPED) {
                     self.linking_pin = None;
                 } else if let Some((dragged_data, delta)) = command.get(DRAGGING) {
-                    if self.shift_held {
+                    if self.ctrl_held {
                         if let Some(dragged_data) = dragged_data.downcast_ref::<C>() {
                             let dragged_id = dragged_data.get_id();
                             self.move_connected(data, dragged_id, *delta);

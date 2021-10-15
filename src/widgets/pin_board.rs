@@ -26,7 +26,11 @@ pub struct PinBoard<C, D, W> {
     pub pin_id_under_mouse: Option<u64>,
 }
 
-impl<C: Data + Pinnable + PartialEq, D: CanvasData<C> + PinBoardData<C>, W: Widget<C>> PinBoard<C, D, W> {
+impl<
+    C: Data + Pinnable + PartialEq, 
+    D: CanvasData<C> + PinBoardData<C>, 
+    W: Widget<C>
+> PinBoard<C, D, W> {
     pub fn new(
         new_widget: impl Fn() -> W + 'static,
     ) -> PinBoard<C, D, W> {
@@ -56,12 +60,16 @@ impl<C: Data + Pinnable + PartialEq, D: CanvasData<C> + PinBoardData<C>, W: Widg
     } 
 
     fn add_pin(&mut self, position: Point, data: &mut D) {
-        let (pin_id, new_pin) = self.new_pin(position, data);
+        let (_pin_id, new_pin) = self.new_pin(position, data);
         data.add_pin(new_pin);
     }
 }
 
-impl<C: Data + Debug + Pinnable + PartialEq, D: Data + Positioned + CanvasData<C> + PinBoardData<C>, W: Widget<C>> Widget<D> for PinBoard<C, D, W> {
+impl<
+    C: Data + Debug + Pinnable + PartialEq, 
+    D: Data + Positioned + CanvasData<C> + PinBoardData<C>, 
+    W: Widget<C>
+> Widget<D> for PinBoard<C, D, W> {
     fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut D, env: &Env) {
         self.canvas.event(ctx, ev, data, env);
 
@@ -75,7 +83,7 @@ impl<C: Data + Debug + Pinnable + PartialEq, D: Data + Positioned + CanvasData<C
             },
             Event::MouseMove(mouse_event) => {
                 self.pin_id_under_mouse = None;
-                for (child_id, child_data) in data.children() {
+                for (child_id, _child_data) in data.children() {
                     if let Some(child_location) = self.canvas.widget().get_child_position(&child_id) {
                         if child_location.contains(mouse_event.pos) {
                             self.pin_id_under_mouse = Some(*child_id);

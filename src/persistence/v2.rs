@@ -29,7 +29,8 @@ pub fn upgrade_v2_to_current(v2_state: V2AppData) -> AppData {
             position: v2_todo.position,
             name: v2_todo.name.clone(),
             status: v2_todo.status.clone(),
-            highlighted: v2_todo.highlighted
+            highlighted: v2_todo.highlighted,
+            selected: false,
         });
     }
 

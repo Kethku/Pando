@@ -56,7 +56,11 @@ pub struct Canvas<C, D, W> {
     child_positions: HashMap<u64, Rect>,
 }
 
-impl<C: Data + Positioned + PartialEq, D: CanvasData<C>, W: Widget<C>> Canvas<C, D, W> {
+impl<
+    C: Data + Positioned + PartialEq, 
+    D: CanvasData<C>, 
+    W: Widget<C>
+> Canvas<C, D, W> {
     pub fn new(new_widget_closure: impl Fn() -> W + 'static) -> Self {
         Canvas {
             phantom: PhantomData,
@@ -98,7 +102,11 @@ impl<C: Data + Positioned + PartialEq, D: CanvasData<C>, W: Widget<C>> Canvas<C,
     }
 }
 
-impl<C: Data + Positioned + Identifiable + PartialEq, D: Positioned + CanvasData<C>, W: Widget<C>> Widget<D> for Canvas<C, D, W> {
+impl<
+    C: Data + Positioned + Identifiable + PartialEq, 
+    D: Positioned + CanvasData<C>, 
+    W: Widget<C>
+> Widget<D> for Canvas<C, D, W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut D, env: &Env) {
         for (id, child_data) in data.children_mut() {
             if let Some(child_widget) = self.children.get_mut(&id) {

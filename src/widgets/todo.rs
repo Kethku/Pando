@@ -27,7 +27,9 @@ pub struct TodoItem {
     pub name: String,
     pub status: TodoStatus,
     #[serde(default)]
-    pub highlighted: bool
+    pub highlighted: bool,
+    #[serde(skip)]
+    pub selected: bool
 }
 
 impl TodoItem {
@@ -66,6 +68,7 @@ impl Pinnable for TodoItem {
             name: "".to_owned(),
             status: TodoStatus::Authoring,
             highlighted: false,
+            selected: false,
         }
     }
 }
@@ -129,7 +132,9 @@ pub fn todo() -> impl Widget<TodoItem> {
         .rounded(theme::BUTTON_BORDER_RADIUS)
         .border(theme::BORDER_LIGHT, theme::BUTTON_BORDER_WIDTH)
         .env_scope(|env, todo| {
-            if todo.highlighted {
+            if todo.selected {
+                env.set(theme::BORDER_LIGHT, env.get(theme::PRIMARY_DARK))
+            } else if todo.highlighted {
                 env.set(theme::BORDER_LIGHT, env.get(theme::PRIMARY_LIGHT))
             }
         })
@@ -138,11 +143,17 @@ pub fn todo() -> impl Widget<TodoItem> {
             todo.progress();
             ctx.record_undo_state();
         })
-        .on_mouse_ctrl(|ctx, todo| {
+        .on_mouse_shift(|_ctx, todo| {
+            todo.selected = !todo.selected;
+        })
+        .on_mouse_alt(|ctx, todo| {
             todo.highlighted = !todo.highlighted;
             ctx.record_undo_state();
         })
         .on_mouse_middle(|_ctx, todo| {
             todo.status = TodoStatus::Authoring;
+        })
+        .on_clear_selection(|_ctx, todo| {
+            todo.selected = false;
         })
 }
