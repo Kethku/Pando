@@ -1,0 +1,24 @@
+[package]
+name = "pando"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+vide = { path = "../vide" }
+bytemuck = { version = "1.14.3", features = ["derive"] }
+futures = "0.3"
+glamour = { version = "0.11.1", features = ["serde"] }
+lazy_static = "*"
+palette = { version = "0.7.6", features = ["serializing"] }
+parking_lot = "0.12.1"
+rust-embed = "8.2.0"
+serde = "1.0.196"
+serde_derive = "1.0.196"
+serde_json = "1.0.113"
+winit = "0.29.10"
+
+aspen = { path = "../aspen" }
+aspen_macros = { path = "../aspen/aspen_macros" }
