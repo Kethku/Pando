@@ -2,7 +2,10 @@ use std::{ops::Deref, sync::Arc};
 
 use glamour::prelude::*;
 use vide::{
-    winit::{event_loop::ActiveEventLoop, window::Window},
+    winit::{
+        event_loop::ActiveEventLoop,
+        window::{Cursor, CursorIcon, ResizeDirection, Window},
+    },
     Layer, Scene,
 };
 
@@ -67,6 +70,10 @@ impl EventState {
     pub fn window_size(&self) -> Size2 {
         self.window_size
     }
+
+    pub fn window_rect(&self) -> Rect {
+        Rect::new(point2!(0., 0.), self.window_size)
+    }
 }
 
 pub struct Context<'a> {
@@ -118,6 +125,16 @@ impl<'a> Context<'a> {
 
     pub fn drag_window(&self) {
         self.window.drag_window().expect("Could not drag window");
+    }
+
+    pub fn drag_resize_window(&self, direction: ResizeDirection) {
+        self.window
+            .drag_resize_window(direction)
+            .expect("Could not drag resize window");
+    }
+
+    pub fn set_cursor(&self, icon: CursorIcon) {
+        self.window.set_cursor(Cursor::Icon(icon));
     }
 }
 

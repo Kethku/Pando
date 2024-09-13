@@ -9,7 +9,7 @@ use vide::{
         event::{ElementState, MouseButton, WindowEvent},
         event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
         platform::windows::WindowAttributesExtWindows,
-        window::{Cursor, CursorIcon, ResizeDirection, Window, WindowAttributes, WindowId},
+        window::{Window, WindowAttributes, WindowId},
     },
     WinitRenderer,
 };
@@ -59,44 +59,6 @@ impl<A: FrameworkApplication> WinitApplicationHandler<A> {
         )
     }
 
-    fn handle_resize_regions(&mut self) {
-        let window = self.renderer.as_ref().unwrap().window.clone();
-
-        let mut result = None;
-        if self.event_state.mouse_position.x < 12. && self.event_state.mouse_position.y < 12. {
-            result = Some((ResizeDirection::NorthWest, CursorIcon::NwResize));
-        } else if self.event_state.mouse_position.x < 12.
-            && self.event_state.mouse_position.y > self.event_state.window_size.height - 12.
-        {
-            result = Some((ResizeDirection::SouthWest, CursorIcon::SwResize));
-        } else if self.event_state.mouse_position.x > self.event_state.window_size.width - 12.
-            && self.event_state.mouse_position.y < 12.
-        {
-            result = Some((ResizeDirection::NorthEast, CursorIcon::NeResize));
-        } else if self.event_state.mouse_position.x > self.event_state.window_size.width - 12.
-            && self.event_state.mouse_position.y > self.event_state.window_size.height - 12.
-        {
-            result = Some((ResizeDirection::SouthEast, CursorIcon::SeResize));
-        } else if self.event_state.mouse_position.x < 8. {
-            result = Some((ResizeDirection::West, CursorIcon::WResize));
-        } else if self.event_state.mouse_position.x > self.event_state.window_size.width - 8. {
-            result = Some((ResizeDirection::East, CursorIcon::EResize));
-        } else if self.event_state.mouse_position.y < 8. {
-            result = Some((ResizeDirection::North, CursorIcon::NResize));
-        } else if self.event_state.mouse_position.y > self.event_state.window_size.height - 8. {
-            result = Some((ResizeDirection::South, CursorIcon::SResize));
-        }
-
-        if let Some((direction, icon)) = result {
-            window.set_cursor(Cursor::Icon(icon));
-            if self.event_state.mouse_down {
-                window.drag_resize_window(direction).ok();
-            }
-        } else {
-            window.set_cursor(CursorIcon::Default);
-        }
-    }
-
     fn draw_frame(&mut self, event_loop: &ActiveEventLoop) {
         let mut mouse_region_manager = self.mouse_region_manager.borrow_mut();
         let mut app = self.app.borrow_mut();
@@ -104,9 +66,10 @@ impl<A: FrameworkApplication> WinitApplicationHandler<A> {
         mouse_region_manager.process_regions(&context);
 
         let needs_redraw = {
-            let mut update_context = UpdateContext::new(&context, &mut mouse_region_manager);
+            let update_context = UpdateContext::new(&context, &mut mouse_region_manager);
             app.update(&update_context)
         };
+
         if needs_redraw || self.force_redraw {
             mouse_region_manager.clear_regions();
             let mut draw_context = DrawContext::new(&context, &mut mouse_region_manager);
@@ -132,7 +95,6 @@ impl<A: FrameworkApplication> ApplicationHandler for WinitApplicationHandler<A> 
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::CursorMoved { position, .. } => {
                 self.event_state.mouse_position = point2!(position.x as f32, position.y as f32);
-                self.handle_resize_regions();
                 self.renderer.as_ref().unwrap().window.request_redraw();
             }
             WindowEvent::MouseInput {
@@ -141,7 +103,6 @@ impl<A: FrameworkApplication> ApplicationHandler for WinitApplicationHandler<A> 
                 ..
             } => {
                 self.event_state.mouse_down = state == ElementState::Pressed;
-                self.handle_resize_regions();
                 self.renderer.as_ref().unwrap().window.request_redraw();
             }
             WindowEvent::RedrawRequested => {

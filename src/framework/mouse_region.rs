@@ -1,12 +1,14 @@
 use std::collections::HashSet;
 
 use glamour::prelude::*;
+use vide::winit::window::CursorIcon;
 
 use crate::framework::{context::Context, token::Token};
 
 pub struct MouseRegion {
     rect: Rect,
     token: Token,
+    icon: Option<CursorIcon>,
     on_drag: Option<Box<dyn Fn(Point2, &Context)>>,
     on_hover: Option<Box<dyn Fn(&Context)>>,
     on_leave: Option<Box<dyn Fn(&Context)>>,
@@ -20,6 +22,7 @@ impl MouseRegion {
         MouseRegion {
             rect,
             token,
+            icon: None,
             on_hover: None,
             on_leave: None,
             on_down: None,
@@ -27,6 +30,11 @@ impl MouseRegion {
             on_up: None,
             on_clicked: None,
         }
+    }
+
+    pub fn with_icon(mut self, icon: CursorIcon) -> Self {
+        self.icon = Some(icon);
+        self
     }
 
     pub fn on_hover<F: Fn(&Context) + 'static>(mut self, f: F) -> Self {
@@ -87,6 +95,8 @@ impl MouseRegionManager {
 
     pub fn process_regions(&mut self, cx: &Context) {
         let down = self.down;
+        let mut icon_set = false;
+
         if cx.mouse_just_down() {
             self.down = Some(cx.mouse_position());
         }
@@ -109,6 +119,13 @@ impl MouseRegionManager {
 
         for region in self.regions.iter().rev() {
             if region.rect.contains(&cx.mouse_position()) {
+                if !icon_set {
+                    if let Some(icon) = region.icon {
+                        cx.set_cursor(icon);
+                        icon_set = true;
+                    }
+                }
+
                 self.hovered_regions.insert(region.token);
 
                 let mut consume = false;
@@ -154,6 +171,10 @@ impl MouseRegionManager {
                     break;
                 }
             }
+        }
+
+        if !icon_set {
+            cx.set_cursor(CursorIcon::Default);
         }
     }
 }

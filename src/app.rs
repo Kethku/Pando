@@ -4,7 +4,9 @@ use vide::prelude::*;
 
 use crate::{
     framework::{
-        components::{background::Background, window_buttons::WindowButtons},
+        components::{
+            background::Background, resize_handles::ResizeHandles, window_buttons::WindowButtons,
+        },
         context::{Context, DrawContext},
         runner::FrameworkApplication,
     },
@@ -14,6 +16,7 @@ use crate::{
 pub struct App {
     pub background: Background,
     pub window_buttons: WindowButtons,
+    pub resize_handles: ResizeHandles,
 }
 
 impl App {
@@ -21,6 +24,7 @@ impl App {
         App {
             background: Background::new(point!(0., 0.)),
             window_buttons: WindowButtons::new(),
+            resize_handles: ResizeHandles::new(),
         }
     }
 }
@@ -57,5 +61,6 @@ impl FrameworkApplication for App {
                 ),
         );
         self.window_buttons.draw(cx);
+        self.resize_handles.draw(cx);
     }
 }
