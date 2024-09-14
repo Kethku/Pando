@@ -79,6 +79,7 @@ impl<A: FrameworkApplication> WinitApplicationHandler<A> {
 
             self.renderer.as_mut().unwrap().draw(&scene);
             self.force_redraw = false;
+            // Request a redraw so that we can continue timers if they need to
             self.renderer.as_ref().unwrap().window.request_redraw();
         }
         self.event_state.next_frame();
@@ -143,10 +144,6 @@ impl<A: FrameworkApplication> ApplicationHandler for WinitApplicationHandler<A> 
     fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
         self.renderer.as_mut().unwrap().suspended();
     }
-
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, _event: ()) {
-        self.renderer.as_ref().unwrap().window.request_redraw();
-    }
 }
 
 pub trait FrameworkApplication {
@@ -156,7 +153,7 @@ pub trait FrameworkApplication {
 
 pub fn run<A: FrameworkApplication>(app: A) {
     let event_loop = EventLoop::new().expect("Could not create event loop");
-    event_loop.set_control_flow(ControlFlow::Poll);
+    event_loop.set_control_flow(ControlFlow::Wait);
     let mut application_handler = WinitApplicationHandler::new(app);
 
     event_loop.run_app(&mut application_handler).ok();
