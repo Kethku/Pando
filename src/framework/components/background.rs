@@ -4,18 +4,13 @@ use glamour::prelude::*;
 use vide::*;
 
 use crate::{
-    framework::{
-        context::{Context, DrawContext},
-        mouse_region::MouseRegion,
-        token::Token,
-    },
+    framework::{context::DrawContext, mouse_region::MouseRegion, token::Token},
     util::*,
 };
 
 pub struct Background {
     token: Token,
     offset: Rc<RefCell<Point2>>,
-    moved: Rc<RefCell<bool>>,
 }
 
 impl Background {
@@ -23,16 +18,11 @@ impl Background {
         Self {
             token: Token::new(),
             offset: Rc::new(RefCell::new(offset)),
-            moved: Rc::new(RefCell::new(false)),
         }
     }
 
     pub fn offset(&self) -> Point2 {
         *self.offset.borrow()
-    }
-
-    pub fn update(&mut self, _cx: &Context) -> bool {
-        self.moved.take()
     }
 
     pub fn draw(&self, cx: &mut DrawContext) {
@@ -43,15 +33,15 @@ impl Background {
         cx.add_mouse_region(
             MouseRegion::new(self.token, Rect::new(point2!(0., 0.), size)).on_drag({
                 let offset = self.offset.clone();
-                let moved = self.moved.clone();
                 move |_down, cx| {
-                    *offset.borrow_mut() += cx.mouse_delta();
-                    *moved.borrow_mut() = true;
+                    let mut offset = offset.borrow_mut();
+                    *offset += cx.mouse_delta();
+                    cx.request_redraw();
                 }
             }),
         );
 
-        let offset = self.offset.borrow_mut();
+        let offset = self.offset();
         let mut x = offset.x % 50.;
         loop {
             let mut y = offset.y % 50.;

@@ -5,7 +5,7 @@ use vide::*;
 use super::button::Button;
 use crate::{
     framework::{
-        context::{Context, DrawContext},
+        context::{Context, DrawContext, UpdateContext},
         mouse_region::MouseRegion,
         token::Token,
     },
@@ -51,7 +51,7 @@ impl WindowButtons {
         }
     }
 
-    pub fn update(&mut self, cx: &Context) -> bool {
+    pub fn update(&mut self, cx: &mut UpdateContext) {
         self.close.rect = Rect::new(
             point2!(
                 cx.window_size().width - TITLEBAR_HEIGHT * BUTTON_ASPECT_RATIO,
@@ -74,11 +74,9 @@ impl WindowButtons {
             size2!(TITLEBAR_HEIGHT * BUTTON_ASPECT_RATIO, TITLEBAR_HEIGHT),
         );
 
-        let mut result = false;
-        result |= self.close.update(cx);
-        result |= self.maximize.update(cx);
-        result |= self.minimize.update(cx);
-        result
+        self.close.update(cx);
+        self.maximize.update(cx);
+        self.minimize.update(cx);
     }
 
     pub fn draw(&self, cx: &mut DrawContext) {

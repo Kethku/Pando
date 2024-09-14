@@ -7,7 +7,7 @@ use crate::{
         components::{
             background::Background, resize_handles::ResizeHandles, window_buttons::WindowButtons,
         },
-        context::{Context, DrawContext},
+        context::{DrawContext, UpdateContext},
         runner::FrameworkApplication,
     },
     util::*,
@@ -30,17 +30,13 @@ impl App {
 }
 
 impl FrameworkApplication for App {
-    fn update(&mut self, cx: &Context) -> bool {
-        let mut should_draw = false;
-
-        should_draw |= self.background.update(cx);
-        should_draw |= self.window_buttons.update(cx);
-
-        should_draw
+    fn update(&mut self, cx: &mut UpdateContext) {
+        self.window_buttons.update(cx);
     }
 
     fn draw(&self, cx: &mut DrawContext) {
         self.background.draw(cx);
+
         let offset = self.background.offset();
         cx.add_layer(
             Layer::new()
@@ -60,6 +56,7 @@ impl FrameworkApplication for App {
                     .with_corner_radius(10.),
                 ),
         );
+
         self.window_buttons.draw(cx);
         self.resize_handles.draw(cx);
     }

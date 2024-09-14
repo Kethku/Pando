@@ -138,9 +138,36 @@ impl<'a> Context<'a> {
     }
 }
 
+pub struct EventContext<'a> {
+    context: &'a Context<'a>,
+    redraw_requested: &'a mut bool,
+}
+
+impl<'a> Deref for EventContext<'a> {
+    type Target = Context<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.context
+    }
+}
+
+impl<'a> EventContext<'a> {
+    pub fn new(context: &'a Context<'a>, redraw_requested: &'a mut bool) -> EventContext<'a> {
+        EventContext {
+            context,
+            redraw_requested,
+        }
+    }
+
+    pub fn request_redraw(&mut self) {
+        *self.redraw_requested = true;
+    }
+}
+
 pub struct UpdateContext<'a> {
     context: &'a Context<'a>,
     mouse_region_manager: &'a mut MouseRegionManager,
+    redraw_requested: &'a mut bool,
 }
 
 impl<'a> Deref for UpdateContext<'a> {
@@ -155,15 +182,21 @@ impl<'a> UpdateContext<'a> {
     pub fn new(
         context: &'a Context<'a>,
         mouse_region_manager: &'a mut MouseRegionManager,
+        redraw_requested: &'a mut bool,
     ) -> UpdateContext<'a> {
         UpdateContext {
             context,
             mouse_region_manager,
+            redraw_requested,
         }
     }
 
     pub fn add_mouse_region(&mut self, mouse_region: MouseRegion) {
         self.mouse_region_manager.add_region(mouse_region);
+    }
+
+    pub fn request_redraw(&mut self) {
+        *self.redraw_requested = true;
     }
 }
 
@@ -199,6 +232,10 @@ impl<'a> DrawContext<'a> {
 
     pub fn add_layer(&mut self, layer: Layer) {
         self.scene.add_layer(layer);
+    }
+
+    pub fn request_redraw(&self) {
+        self.context.window.request_redraw();
     }
 
     pub fn to_scene(self) -> Scene {

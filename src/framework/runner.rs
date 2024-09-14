@@ -63,14 +63,15 @@ impl<A: FrameworkApplication> WinitApplicationHandler<A> {
         let mut mouse_region_manager = self.mouse_region_manager.borrow_mut();
         let mut app = self.app.borrow_mut();
         let context = self.context(event_loop);
-        mouse_region_manager.process_regions(&context);
 
-        let needs_redraw = {
-            let update_context = UpdateContext::new(&context, &mut mouse_region_manager);
-            app.update(&update_context)
-        };
+        let mut redraw_requested = mouse_region_manager.process_regions(&context);
+        {
+            let mut update_context =
+                UpdateContext::new(&context, &mut mouse_region_manager, &mut redraw_requested);
+            app.update(&mut update_context);
+        }
 
-        if needs_redraw || self.force_redraw {
+        if redraw_requested || self.force_redraw {
             mouse_region_manager.clear_regions();
             let mut draw_context = DrawContext::new(&context, &mut mouse_region_manager);
             app.draw(&mut draw_context);
@@ -149,7 +150,7 @@ impl<A: FrameworkApplication> ApplicationHandler for WinitApplicationHandler<A> 
 }
 
 pub trait FrameworkApplication {
-    fn update(&mut self, cx: &Context) -> bool;
+    fn update(&mut self, cx: &mut UpdateContext);
     fn draw(&self, cx: &mut DrawContext);
 }
 
