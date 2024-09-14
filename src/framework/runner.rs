@@ -79,8 +79,13 @@ impl<A: FrameworkApplication> WinitApplicationHandler<A> {
 
             self.renderer.as_mut().unwrap().draw(&scene);
             self.force_redraw = false;
+
+            let window = &self.renderer.as_ref().unwrap().window;
+            if !window.is_visible().unwrap_or_default() {
+                window.set_visible(true);
+            }
             // Request a redraw so that we can continue timers if they need to
-            self.renderer.as_ref().unwrap().window.request_redraw();
+            window.request_redraw();
         }
         self.event_state.next_frame();
     }
@@ -127,6 +132,7 @@ impl<A: FrameworkApplication> ApplicationHandler for WinitApplicationHandler<A> 
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.renderer.is_none() {
             let attributes = WindowAttributes::default()
+                .with_visible(false)
                 .with_resizable(true)
                 .with_decorations(false)
                 .with_undecorated_shadow(true);
@@ -135,7 +141,10 @@ impl<A: FrameworkApplication> ApplicationHandler for WinitApplicationHandler<A> 
                     .create_window(attributes)
                     .expect("Failed to create window"),
             );
+
+            self.force_redraw = true;
             self.renderer = Some(block_on(Self::create_renderer(window)));
+            self.draw_frame(event_loop);
         } else {
             self.renderer.as_mut().unwrap().resumed();
         }
