@@ -6,21 +6,20 @@ use vide::prelude::*;
 
 use crate::{
     framework::{
-        context::{DrawContext, EventContext, UpdateContext},
+        context::{DrawContext, EventContext, LayoutContext, UpdateContext},
+        element::{Element, ElementPointer},
         mouse_region::MouseRegion,
-        token::Token,
     },
     util::Mixable,
 };
 
-const ANIM_LENGTH: f32 = 0.2;
+const ANIM_LENGTH: f32 = 0.1;
 
 pub struct Button {
-    token: Token,
-    pub rect: Rect,
+    size: Size2,
     idle_background: Srgba,
     hover_background: Srgba,
-    draw_contents: Box<dyn Fn(Rect, &mut Layer, &mut DrawContext)>,
+    draw_contents: Box<dyn Fn(Rect, &mut DrawContext)>,
 
     state: Rc<RefCell<ButtonState>>,
 }
@@ -33,19 +32,15 @@ struct ButtonState {
 }
 
 impl Button {
-    pub fn new<
-        D: Fn(Rect, &mut Layer, &mut DrawContext) + 'static,
-        C: Fn(&mut EventContext) + 'static,
-    >(
-        rect: Rect,
+    pub fn new<D: Fn(Rect, &mut DrawContext) + 'static, C: Fn(&mut EventContext) + 'static>(
+        size: Size2,
         idle_background: Srgba,
         hover_background: Srgba,
         draw_contents: D,
         on_clicked: C,
-    ) -> Self {
-        Self {
-            token: Token::new(),
-            rect,
+    ) -> ElementPointer<Self> {
+        ElementPointer::new(Self {
+            size,
             idle_background,
             hover_background,
             draw_contents: Box::new(draw_contents),
@@ -56,10 +51,12 @@ impl Button {
                 hover_t: 1.5,
                 hovered: false,
             })),
-        }
+        })
     }
+}
 
-    pub fn update(&mut self, cx: &mut UpdateContext) {
+impl Element for Button {
+    fn update(&mut self, cx: &mut UpdateContext) {
         let mut state = self.state.borrow_mut();
         let was_drawing = state.hover_t < 1.5;
         state.hover_t = state.hover_start.elapsed().as_secs_f32() / ANIM_LENGTH;
@@ -68,9 +65,14 @@ impl Button {
         }
     }
 
-    pub fn draw(&self, layer: &mut Layer, cx: &mut DrawContext) {
+    fn layout(&mut self, min: Size2, max: Size2, _cx: &mut LayoutContext) -> Size2 {
+        self.size.clamp(min, max)
+    }
+
+    fn draw(&self, cx: &mut DrawContext) {
+        let region = cx.region();
         cx.add_mouse_region(
-            MouseRegion::new(self.token, self.rect)
+            MouseRegion::new(cx.token(), region)
                 .on_hover({
                     let state = self.state.clone();
                     move |_cx| {
@@ -100,23 +102,25 @@ impl Button {
                 }),
         );
 
-        {
-            let state = self.state.borrow();
-            if self.rect.contains(&cx.mouse_position()) {
+        let state = self.state.borrow();
+        if region.contains(&cx.mouse_position()) {
+            cx.update_layer(|_, layer| {
                 layer.add_quad(Quad::new(
-                    self.rect,
+                    region,
                     self.idle_background
                         .mix(&self.hover_background, state.hover_t),
                 ));
-            } else {
+            });
+        } else {
+            cx.update_layer(|_, layer| {
                 layer.add_quad(Quad::new(
-                    self.rect,
+                    region,
                     self.hover_background
                         .mix(&self.idle_background, state.hover_t),
                 ));
-            }
+            });
         }
 
-        (self.draw_contents)(self.rect, layer, cx);
+        (self.draw_contents)(region, cx);
     }
 }

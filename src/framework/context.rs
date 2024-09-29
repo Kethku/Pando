@@ -1,15 +1,22 @@
-use std::{ops::Deref, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Deref,
+    sync::Arc,
+};
 
 use glamour::prelude::*;
 use vide::{
+    prelude::*,
     winit::{
         event_loop::ActiveEventLoop,
         window::{Cursor, CursorIcon, ResizeDirection, Window},
     },
-    Layer, Scene,
 };
 
-use crate::framework::mouse_region::{MouseRegion, MouseRegionManager};
+use crate::framework::{
+    mouse_region::{MouseRegion, MouseRegionManager},
+    token::Token,
+};
 
 pub struct EventState {
     pub mouse_position: Point2,
@@ -80,6 +87,7 @@ pub struct Context<'a> {
     event_state: &'a EventState,
     event_loop: &'a ActiveEventLoop,
     window: Arc<Window>,
+    element_token: Token,
 }
 
 impl<'a> Deref for Context<'a> {
@@ -95,11 +103,13 @@ impl<'a> Context<'a> {
         event_state: &'a EventState,
         event_loop: &'a ActiveEventLoop,
         window: Arc<Window>,
+        element_token: Token,
     ) -> Context<'a> {
         Context {
             event_state,
             event_loop,
             window,
+            element_token,
         }
     }
 
@@ -136,6 +146,22 @@ impl<'a> Context<'a> {
     pub fn set_cursor(&self, icon: CursorIcon) {
         self.window.set_cursor(Cursor::Icon(icon));
     }
+
+    pub fn token(&self) -> Token {
+        self.element_token
+    }
+
+    pub fn child<'b>(&self, element_token: Token) -> Context<'b>
+    where
+        'a: 'b,
+    {
+        Context {
+            event_state: self.event_state,
+            event_loop: self.event_loop,
+            window: self.window.clone(),
+            element_token,
+        }
+    }
 }
 
 pub struct EventContext<'a> {
@@ -165,7 +191,7 @@ impl<'a> EventContext<'a> {
 }
 
 pub struct UpdateContext<'a> {
-    context: &'a Context<'a>,
+    context: Context<'a>,
     mouse_region_manager: &'a mut MouseRegionManager,
     redraw_requested: &'a mut bool,
 }
@@ -180,7 +206,7 @@ impl<'a> Deref for UpdateContext<'a> {
 
 impl<'a> UpdateContext<'a> {
     pub fn new(
-        context: &'a Context<'a>,
+        context: Context<'a>,
         mouse_region_manager: &'a mut MouseRegionManager,
         redraw_requested: &'a mut bool,
     ) -> UpdateContext<'a> {
@@ -198,12 +224,81 @@ impl<'a> UpdateContext<'a> {
     pub fn request_redraw(&mut self) {
         *self.redraw_requested = true;
     }
+
+    pub fn child<'b>(&'b mut self, element_token: Token) -> UpdateContext<'b>
+    where
+        'a: 'b,
+    {
+        let child_cx: Context<'b> = self.context.child(element_token);
+        UpdateContext {
+            context: child_cx,
+            mouse_region_manager: self.mouse_region_manager,
+            redraw_requested: self.redraw_requested,
+        }
+    }
+}
+
+pub struct LayoutContext<'a> {
+    context: Context<'a>,
+    regions: &'a mut HashMap<Token, Rect>,
+    children: &'a mut HashMap<Token, HashSet<Token>>,
+}
+
+impl<'a> Deref for LayoutContext<'a> {
+    type Target = Context<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.context
+    }
+}
+
+impl<'a> LayoutContext<'a> {
+    pub fn new(
+        context: Context<'a>,
+        regions: &'a mut HashMap<Token, Rect>,
+        children: &'a mut HashMap<Token, HashSet<Token>>,
+    ) -> LayoutContext<'a> {
+        LayoutContext {
+            context,
+            regions,
+            children,
+        }
+    }
+
+    pub fn add_region(&mut self, token: Token, rect: Rect) {
+        self.regions.insert(token, rect);
+    }
+
+    pub fn child<'b>(&'b mut self, token: Token) -> LayoutContext<'b>
+    where
+        'a: 'b,
+    {
+        self.children.entry(self.token()).or_default().insert(token);
+        let child_cx: Context<'b> = self.context.child(token);
+        LayoutContext::<'b> {
+            context: child_cx,
+            regions: self.regions,
+            children: self.children,
+        }
+    }
+
+    pub fn translate_descendants(&mut self, token: Token, offset: Vector2) {
+        if let Some(children) = self.children.get(&token).cloned() {
+            for child in children.iter() {
+                if let Some(region) = self.regions.get_mut(child) {
+                    *region = region.translate(offset);
+                    self.translate_descendants(*child, offset);
+                }
+            }
+        }
+    }
 }
 
 pub struct DrawContext<'a> {
-    context: &'a Context<'a>,
+    context: Context<'a>,
     mouse_region_manager: &'a mut MouseRegionManager,
-    scene: Scene,
+    regions: &'a HashMap<Token, Rect>,
+    scene: &'a mut Scene,
 }
 
 impl<'a> Deref for DrawContext<'a> {
@@ -216,14 +311,22 @@ impl<'a> Deref for DrawContext<'a> {
 
 impl<'a> DrawContext<'a> {
     pub fn new(
-        context: &'a Context<'a>,
+        context: Context<'a>,
         mouse_region_manager: &'a mut MouseRegionManager,
+        regions: &'a HashMap<Token, Rect>,
+        scene: &'a mut Scene,
     ) -> DrawContext<'a> {
         DrawContext {
             context,
             mouse_region_manager,
-            scene: Scene::new(),
+            regions,
+            scene,
         }
+    }
+
+    pub fn mouse_region(&mut self, region: Rect) -> &mut MouseRegion {
+        self.mouse_region_manager
+            .add_region(MouseRegion::new(self.context.token(), region))
     }
 
     pub fn add_mouse_region(&mut self, mouse_region: MouseRegion) {
@@ -234,11 +337,31 @@ impl<'a> DrawContext<'a> {
         self.scene.add_layer(layer);
     }
 
+    pub fn update_layer(&mut self, update: impl FnOnce(&mut Resources, &mut Layer)) {
+        self.scene.update_layer(update);
+    }
+
     pub fn request_redraw(&self) {
         self.context.window.request_redraw();
     }
 
-    pub fn to_scene(self) -> Scene {
-        self.scene
+    pub fn region(&self) -> Rect {
+        self.regions
+            .get(&self.context.token())
+            .copied()
+            .expect("Layout must not have been completed before drawing")
+    }
+
+    pub fn child<'b>(&'b mut self, token: Token) -> DrawContext<'b>
+    where
+        'a: 'b,
+    {
+        let child_cx: Context<'b> = self.context.child(token);
+        DrawContext::<'b> {
+            context: child_cx,
+            mouse_region_manager: self.mouse_region_manager,
+            regions: self.regions,
+            scene: self.scene,
+        }
     }
 }

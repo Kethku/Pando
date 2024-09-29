@@ -19,6 +19,3 @@ serde = "1.0.196"
 serde_derive = "1.0.196"
 serde_json = "1.0.113"
 winit = "0.29.10"
-
-aspen = { path = "../aspen" }
-aspen_macros = { path = "../aspen/aspen_macros" }

@@ -1,9 +1,10 @@
 use futures::executor::block_on;
-use std::{cell::RefCell, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use glamour::prelude::*;
 use rust_embed::RustEmbed;
 use vide::{
+    prelude::*,
     winit::{
         application::ApplicationHandler,
         event::{ElementState, MouseButton, WindowEvent},
@@ -15,28 +16,30 @@ use vide::{
 };
 
 use crate::framework::{
-    context::{Context, DrawContext, EventState, UpdateContext},
+    context::{Context, DrawContext, EventState, LayoutContext, UpdateContext},
+    element::{Element, ElementPointer},
     mouse_region::MouseRegionManager,
+    token::Token,
 };
 
 #[derive(RustEmbed)]
 #[folder = "assets"]
 struct Assets;
 
-struct WinitApplicationHandler<A: FrameworkApplication> {
+struct WinitApplicationHandler<A: Element> {
     mouse_region_manager: RefCell<MouseRegionManager>,
-    app: RefCell<A>,
+    app: RefCell<ElementPointer<A>>,
     event_state: EventState,
     renderer: Option<WinitRenderer>,
 
     force_redraw: bool,
 }
 
-impl<A: FrameworkApplication> WinitApplicationHandler<A> {
-    fn new(app: A) -> Self {
+impl<A: Element> WinitApplicationHandler<A> {
+    fn new(app: impl Into<ElementPointer<A>>) -> Self {
         WinitApplicationHandler {
             mouse_region_manager: RefCell::new(MouseRegionManager::new()),
-            app: RefCell::new(app),
+            app: RefCell::new(app.into()),
             event_state: EventState::new(),
             renderer: None,
 
@@ -51,31 +54,55 @@ impl<A: FrameworkApplication> WinitApplicationHandler<A> {
             .await
     }
 
-    fn context<'a>(&'a self, event_loop: &'a ActiveEventLoop) -> Context<'a> {
+    fn context<'a>(&'a self, event_loop: &'a ActiveEventLoop, element_token: Token) -> Context<'a> {
         Context::new(
             &self.event_state,
             event_loop,
             self.renderer.as_ref().unwrap().window.clone(),
+            element_token,
         )
     }
 
     fn draw_frame(&mut self, event_loop: &ActiveEventLoop) {
         let mut mouse_region_manager = self.mouse_region_manager.borrow_mut();
         let mut app = self.app.borrow_mut();
-        let context = self.context(event_loop);
-
-        let mut redraw_requested = mouse_region_manager.process_regions(&context);
+        let mut redraw_requested =
+            mouse_region_manager.process_regions(&self.context(event_loop, app.token()));
         {
-            let mut update_context =
-                UpdateContext::new(&context, &mut mouse_region_manager, &mut redraw_requested);
+            let mut update_context = UpdateContext::new(
+                self.context(event_loop, app.token()),
+                &mut mouse_region_manager,
+                &mut redraw_requested,
+            );
             app.update(&mut update_context);
         }
 
         if redraw_requested || self.force_redraw {
+            let mut regions = HashMap::new();
+            let mut children = HashMap::new();
+            {
+                let mut layout_context = LayoutContext::new(
+                    self.context(event_loop, app.token()),
+                    &mut regions,
+                    &mut children,
+                );
+                let result = app.layout(
+                    self.event_state.window_size,
+                    self.event_state.window_size,
+                    &mut layout_context,
+                );
+                result.position(point2!(0., 0.), &mut layout_context);
+            }
+
             mouse_region_manager.clear_regions();
-            let mut draw_context = DrawContext::new(&context, &mut mouse_region_manager);
+            let mut scene = Scene::new();
+            let mut draw_context = DrawContext::new(
+                self.context(event_loop, app.token()),
+                &mut mouse_region_manager,
+                &regions,
+                &mut scene,
+            );
             app.draw(&mut draw_context);
-            let scene = draw_context.to_scene();
 
             self.renderer.as_mut().unwrap().draw(&scene);
             self.force_redraw = false;
@@ -91,7 +118,7 @@ impl<A: FrameworkApplication> WinitApplicationHandler<A> {
     }
 }
 
-impl<A: FrameworkApplication> ApplicationHandler for WinitApplicationHandler<A> {
+impl<A: Element> ApplicationHandler for WinitApplicationHandler<A> {
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
@@ -155,15 +182,10 @@ impl<A: FrameworkApplication> ApplicationHandler for WinitApplicationHandler<A> 
     }
 }
 
-pub trait FrameworkApplication {
-    fn update(&mut self, cx: &mut UpdateContext);
-    fn draw(&self, cx: &mut DrawContext);
-}
-
-pub fn run<A: FrameworkApplication>(app: A) {
+pub fn run<A: Element>(app: impl Into<ElementPointer<A>>) {
     let event_loop = EventLoop::new().expect("Could not create event loop");
     event_loop.set_control_flow(ControlFlow::Wait);
-    let mut application_handler = WinitApplicationHandler::new(app);
+    let mut application_handler = WinitApplicationHandler::new(app.into());
 
     event_loop.run_app(&mut application_handler).ok();
 }

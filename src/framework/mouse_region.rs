@@ -92,8 +92,9 @@ impl MouseRegionManager {
         self.regions.clear();
     }
 
-    pub fn add_region(&mut self, region: MouseRegion) {
+    pub fn add_region(&mut self, region: MouseRegion) -> &mut MouseRegion {
         self.regions.push(region);
+        self.regions.last_mut().unwrap()
     }
 
     pub fn process_regions(&mut self, cx: &Context) -> bool {
@@ -123,6 +124,14 @@ impl MouseRegionManager {
         }
 
         for region in self.regions.iter().rev() {
+            if let Some(down) = down {
+                if current_dragger == Some(region.token) && cx.mouse_down() {
+                    if let Some(on_drag) = &region.on_drag {
+                        on_drag(down, &mut cx);
+                    }
+                }
+            }
+
             if region.rect.contains(&cx.mouse_position()) {
                 if !icon_set {
                     if let Some(icon) = region.icon {
@@ -161,14 +170,6 @@ impl MouseRegionManager {
                             on_clicked(&mut cx);
                         }
                         consume = true;
-                    }
-                }
-
-                if let Some(down) = down {
-                    if let Some(on_drag) = &region.on_drag {
-                        if current_dragger == Some(region.token) {
-                            on_drag(down, &mut cx);
-                        }
                     }
                 }
 
