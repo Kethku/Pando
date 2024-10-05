@@ -7,4 +7,6 @@ pub mod runner;
 pub mod token;
 pub mod util;
 
+pub mod prelude;
+
 pub use vide;

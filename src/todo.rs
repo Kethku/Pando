@@ -1,12 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use aspen::{
-    components::{board::Pinnable, text_editor::TextEditor},
-    context::{DrawContext, LayoutContext},
-    element::{Element, ElementPointer},
-    mouse_region::MouseRegion,
-    vide::prelude::*,
-};
+use aspen::prelude::*;
 
 use crate::util::*;
 
