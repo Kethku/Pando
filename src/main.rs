@@ -1,7 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
-mod framework;
 // mod ngs;
 mod todo;
 mod util;
@@ -58,7 +57,7 @@ mod util;
 // - When text input is focused, the box is highlighted
 
 use app::App;
-use framework::runner::run;
+use aspen::runner::run;
 
 fn main() {
     run(App::new())

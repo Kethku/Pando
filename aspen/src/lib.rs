@@ -5,3 +5,6 @@ pub mod geometry;
 pub mod mouse_region;
 pub mod runner;
 pub mod token;
+pub mod util;
+
+pub use vide;

@@ -1,18 +1,14 @@
 use std::{cell::RefCell, rc::Rc};
 
-use glamour::prelude::*;
-use palette::Srgba;
-use vide::prelude::*;
-
-use crate::{
-    framework::{
-        components::{board::Pinnable, text_editor::TextEditor},
-        context::{DrawContext, LayoutContext},
-        element::{Element, ElementPointer},
-        mouse_region::MouseRegion,
-    },
-    util::*,
+use aspen::{
+    components::{board::Pinnable, text_editor::TextEditor},
+    context::{DrawContext, LayoutContext},
+    element::{Element, ElementPointer},
+    mouse_region::MouseRegion,
+    vide::prelude::*,
 };
+
+use crate::util::*;
 
 pub struct Todo {
     editor: ElementPointer<TextEditor>,
@@ -27,7 +23,7 @@ struct TodoState {
 impl Todo {
     pub fn new(center: Point2) -> ElementPointer<Self> {
         ElementPointer::new(Self {
-            editor: TextEditor::new(),
+            editor: TextEditor::new(*FOREGROUND),
 
             state: Rc::new(RefCell::new(TodoState { center })),
         })

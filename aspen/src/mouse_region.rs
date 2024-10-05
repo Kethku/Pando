@@ -1,9 +1,8 @@
 use std::collections::HashSet;
 
-use glamour::prelude::*;
-use vide::winit::window::CursorIcon;
+use vide::{prelude::*, winit::window::CursorIcon};
 
-use crate::framework::{
+use crate::{
     context::{Context, EventContext},
     token::Token,
 };

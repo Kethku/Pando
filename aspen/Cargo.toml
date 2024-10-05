@@ -1,0 +1,16 @@
+[package]
+name = "aspen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+vide = { path = "../../vide" }
+# vide = { git = "https://github.com/neovide/vide", ref = "970c239d83fd274d2eeb456f6f0d93207a32accd" }
+futures = "0.3"
+rust-embed = "8.2.0"
+serde = "1.0.196"
+serde_derive = "1.0.196"
+serde_json = "1.0.113"
+winit = "0.29.10"
+mockall = "0.13"

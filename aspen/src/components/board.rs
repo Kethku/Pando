@@ -1,11 +1,12 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::framework::{
+use vide::prelude::*;
+
+use crate::{
     context::{DrawContext, LayoutContext, UpdateContext},
     element::{Element, ElementPointer},
     mouse_region::MouseRegion,
 };
-use glamour::prelude::*;
 
 pub trait Pinnable: Element {
     fn center(&self) -> Point2;

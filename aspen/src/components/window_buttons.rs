@@ -1,15 +1,10 @@
-use glamour::prelude::*;
-use palette::Srgba;
-use vide::*;
+use vide::prelude::*;
 
 use super::button::Button;
 use crate::{
-    framework::{
-        context::{DrawContext, LayoutContext, UpdateContext},
-        element::{Element, ElementPointer},
-        mouse_region::MouseRegion,
-    },
-    util::*,
+    context::{DrawContext, LayoutContext, UpdateContext},
+    element::{Element, ElementPointer},
+    mouse_region::MouseRegion,
 };
 
 const TITLEBAR_HEIGHT: f32 = 34.;
@@ -17,45 +12,53 @@ const BUTTON_ASPECT_RATIO: f32 = 1.666;
 const X_HEIGHT: f32 = 10.;
 
 pub struct WindowButtons {
+    title_background: Srgba,
+
     close: ElementPointer<Button>,
     maximize: ElementPointer<Button>,
     minimize: ElementPointer<Button>,
 }
 
 impl WindowButtons {
-    pub fn new() -> ElementPointer<Self> {
+    pub fn new(
+        title_background: Srgba,
+        close_hover: Srgba,
+        foreground: Srgba,
+    ) -> ElementPointer<Self> {
         let button_size = size2!(TITLEBAR_HEIGHT * BUTTON_ASPECT_RATIO, TITLEBAR_HEIGHT);
         ElementPointer::new(Self {
+            title_background,
+
             close: Button::new(
                 button_size,
                 Srgba::new(0., 0., 0., 0.),
-                *CLOSE,
-                |rect, cx| Self::draw_close_icon(rect, cx),
+                close_hover,
+                move |rect, cx| Self::draw_close_icon(rect, foreground, cx),
                 |cx| cx.close(),
             ),
             maximize: Button::new(
                 button_size,
                 Srgba::new(0., 0., 0., 0.),
-                *BACKGROUND3,
-                |rect, cx| Self::draw_maximize_icon(rect, cx),
+                title_background,
+                move |rect, cx| Self::draw_maximize_icon(rect, foreground, cx),
                 |cx| cx.toggle_maximized(),
             ),
             minimize: Button::new(
                 button_size,
                 Srgba::new(0., 0., 0., 0.),
-                *BACKGROUND3,
-                |rect, cx| Self::draw_minimize_icon(rect, cx),
+                title_background,
+                move |rect, cx| Self::draw_minimize_icon(rect, foreground, cx),
                 |cx| cx.minimize(),
             ),
         })
     }
 
-    fn draw_close_icon(rect: Rect, cx: &mut DrawContext) {
+    fn draw_close_icon(rect: Rect, foreground: Srgba, cx: &mut DrawContext) {
         cx.update_layer(|_, layer| {
             layer.add_path(
                 Path::new_line(
                     1.,
-                    *FOREGROUND,
+                    foreground,
                     rect.center() - vector!(X_HEIGHT / 2., X_HEIGHT / 2.),
                 )
                 .with_line_to(rect.center() + vector!(X_HEIGHT / 2., X_HEIGHT / 2.)),
@@ -63,7 +66,7 @@ impl WindowButtons {
             layer.add_path(
                 Path::new_line(
                     1.,
-                    *FOREGROUND,
+                    foreground,
                     rect.center() + vector!(-X_HEIGHT / 2., X_HEIGHT / 2.),
                 )
                 .with_line_to(rect.center() + vector!(X_HEIGHT / 2., -X_HEIGHT / 2.)),
@@ -71,7 +74,7 @@ impl WindowButtons {
         });
     }
 
-    fn draw_maximize_icon(rect: Rect, cx: &mut DrawContext) {
+    fn draw_maximize_icon(rect: Rect, foreground: Srgba, cx: &mut DrawContext) {
         const RESTORE_OFFSET: f32 = 3.;
         let icon_rect = Rect::new(
             rect.center() - vector!(X_HEIGHT / 2., X_HEIGHT / 2.),
@@ -85,7 +88,7 @@ impl WindowButtons {
                 layer.add_path(
                     Path::new_line(
                         1.,
-                        *FOREGROUND,
+                        foreground,
                         icon_corners[0] + vector!(RESTORE_OFFSET, 0.),
                     )
                     .with_line_to(icon_corners[1])
@@ -96,7 +99,7 @@ impl WindowButtons {
                 layer.add_path(
                     Path::new_stroke(
                         1.,
-                        *FOREGROUND,
+                        foreground,
                         icon_corners[0] + vector!(0., RESTORE_OFFSET),
                     )
                     .with_line_to(icon_corners[1] + vector!(-RESTORE_OFFSET, RESTORE_OFFSET))
@@ -107,7 +110,7 @@ impl WindowButtons {
         } else {
             cx.update_layer(|_, layer| {
                 layer.add_path(
-                    Path::new_stroke(1., *FOREGROUND, icon_corners[0])
+                    Path::new_stroke(1., foreground, icon_corners[0])
                         .with_line_to(icon_corners[1])
                         .with_line_to(icon_corners[2])
                         .with_line_to(icon_corners[3]),
@@ -116,7 +119,7 @@ impl WindowButtons {
         }
     }
 
-    fn draw_minimize_icon(rect: Rect, cx: &mut DrawContext) {
+    fn draw_minimize_icon(rect: Rect, foreground: Srgba, cx: &mut DrawContext) {
         let icon_rect = Rect::new(
             rect.center() - vector!(X_HEIGHT / 2., X_HEIGHT / 2.),
             size2!(X_HEIGHT, X_HEIGHT),
@@ -126,7 +129,7 @@ impl WindowButtons {
             layer.add_path(
                 Path::new_line(
                     1.,
-                    *FOREGROUND,
+                    foreground,
                     icon_rect.center() + vector!(-icon_rect.width() / 2., 0.),
                 )
                 .with_line_to(icon_rect.center() + vector!(icon_rect.width() / 2., 0.)),
@@ -166,7 +169,7 @@ impl Element for WindowButtons {
 
         let region = cx.region();
         cx.update_layer(|_, layer| {
-            layer.add_quad(Quad::new(region, *BACKGROUND2));
+            layer.add_quad(Quad::new(region, self.title_background));
         });
 
         cx.add_mouse_region(MouseRegion::new(cx.token(), region).on_down({

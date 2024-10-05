@@ -1,18 +1,23 @@
-[package]
-name = "pando"
+[workspace]
+resolver = "2"
+members = ["aspen"]
+exclude = [".git", "target"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
-resolver = "2"
+license = "MIT"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package]
+name = "pando"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
-vide = { path = "../vide" }
+aspen = { path = "./aspen" }
 bytemuck = { version = "1.14.3", features = ["derive"] }
 futures = "0.3"
-glamour = { version = "0.11.1", features = ["serde"] }
-lazy_static = "*"
-palette = { version = "0.7.6", features = ["serializing"] }
 parking_lot = "0.12.1"
 rust-embed = "8.2.0"
 serde = "1.0.196"

@@ -1,8 +1,6 @@
 use futures::executor::block_on;
 use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
-use glamour::prelude::*;
-use rust_embed::RustEmbed;
 use vide::{
     prelude::*,
     winit::{
@@ -15,16 +13,12 @@ use vide::{
     WinitRenderer,
 };
 
-use crate::framework::{
+use crate::{
     context::{Context, DrawContext, EventState, LayoutContext, UpdateContext},
     element::{Element, ElementPointer},
     mouse_region::MouseRegionManager,
     token::Token,
 };
-
-#[derive(RustEmbed)]
-#[folder = "assets"]
-struct Assets;
 
 struct WinitApplicationHandler<A: Element> {
     mouse_region_manager: RefCell<MouseRegionManager>,

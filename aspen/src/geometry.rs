@@ -1,4 +1,4 @@
-use glamour::prelude::*;
+use vide::prelude::*;
 
 #[derive(Copy, Clone)]
 pub enum Cardinal {

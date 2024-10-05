@@ -1,15 +1,11 @@
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
-use glamour::prelude::*;
-use palette::Srgba;
 use vide::prelude::*;
 
 use crate::{
-    framework::{
-        context::{DrawContext, EventContext, LayoutContext, UpdateContext},
-        element::{Element, ElementPointer},
-        mouse_region::MouseRegion,
-    },
+    context::{DrawContext, EventContext, LayoutContext, UpdateContext},
+    element::{Element, ElementPointer},
+    mouse_region::MouseRegion,
     util::Mixable,
 };
 

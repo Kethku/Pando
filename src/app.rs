@@ -1,16 +1,11 @@
-use glamour::prelude::*;
-
-use vide::prelude::*;
-
-use crate::{
-    framework::{
-        components::{board::Board, resize_handles::ResizeHandles, window_buttons::WindowButtons},
-        context::{DrawContext, LayoutContext, UpdateContext},
-        element::{Element, ElementPointer},
-    },
-    todo::Todo,
-    util::*,
+use aspen::{
+    components::{board::Board, resize_handles::ResizeHandles, window_buttons::WindowButtons},
+    context::{DrawContext, LayoutContext, UpdateContext},
+    element::{Element, ElementPointer},
+    vide::prelude::*,
 };
+
+use crate::{todo::Todo, util::*};
 
 pub struct App {
     pub board: ElementPointer<Board<Todo>>,
@@ -52,7 +47,7 @@ impl App {
         board.add_child(Todo::new(point2!(100., 100.)));
 
         App {
-            window_buttons: WindowButtons::new(),
+            window_buttons: WindowButtons::new(*BACKGROUND3, *CLOSE, *FOREGROUND),
             resize_handles: ResizeHandles::new(),
             board,
         }

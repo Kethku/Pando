@@ -4,7 +4,6 @@ use std::{
     sync::Arc,
 };
 
-use glamour::prelude::*;
 use mockall::*;
 use vide::{
     prelude::*,
@@ -14,7 +13,7 @@ use vide::{
     },
 };
 
-use crate::framework::{
+use crate::{
     mouse_region::{MouseRegion, MouseRegionManager},
     token::Token,
 };

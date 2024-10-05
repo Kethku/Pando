@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
-use vide::glamour::prelude::*;
+use vide::prelude::*;
 
-use crate::framework::{
+use crate::{
     context::{DrawContext, LayoutContext, UpdateContext},
     token::Token,
 };
@@ -99,11 +99,10 @@ impl Deref for LayoutResult {
 mod tests {
     use std::{collections::HashMap, sync::Arc};
 
-    use glamour::prelude::*;
-    use vide::Scene;
+    use vide::prelude::*;
 
     use super::*;
-    use crate::framework::{
+    use crate::{
         context::{
             Context, DrawContext, EventState, LayoutContext, MockContextEventLoop,
             MockContextWindow,

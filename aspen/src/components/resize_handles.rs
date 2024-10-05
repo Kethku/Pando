@@ -1,8 +1,9 @@
-use glamour::prelude::*;
+use vide::{
+    prelude::*,
+    winit::window::{CursorIcon, ResizeDirection},
+};
 
-use vide::winit::window::{CursorIcon, ResizeDirection};
-
-use crate::framework::{
+use crate::{
     context::{DrawContext, LayoutContext},
     element::{Element, ElementPointer},
     geometry::*,
