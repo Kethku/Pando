@@ -21,31 +21,40 @@ pub struct App {
 
 impl App {
     pub fn new() -> App {
-        App {
-            window_buttons: WindowButtons::new(),
-            resize_handles: ResizeHandles::new(),
-            board: Board::new(point2!(0., 0.), |offset, region, cx| {
-                let mut x = offset.x % 50.;
+        let mut board = Board::new(point2!(0., 0.), |offset, region, cx| {
+            cx.update_layer(|_, layer| {
+                layer.add_quad(
+                    Quad::new(Rect::new(point2!(0., 0.), region.size), *BACKGROUND0)
+                        .with_corner_radius(1.),
+                )
+            });
+            let mut x = offset.x % 50.;
+            loop {
+                let mut y = offset.y % 50.;
                 loop {
-                    let mut y = offset.y % 50.;
-                    loop {
-                        cx.update_layer(|_, layer| {
-                            layer.add_quad(
-                                Quad::new(Rect::new(point2!(x, y), size2!(2., 2.)), *BACKGROUND5)
-                                    .with_corner_radius(1.),
-                            )
-                        });
-                        y += 50.;
-                        if y > region.size.height {
-                            break;
-                        }
-                    }
-                    x += 50.;
-                    if x > region.size.width {
+                    cx.update_layer(|_, layer| {
+                        layer.add_quad(
+                            Quad::new(Rect::new(point2!(x, y), size2!(2., 2.)), *BACKGROUND5)
+                                .with_corner_radius(1.),
+                        )
+                    });
+                    y += 50.;
+                    if y > region.size.height {
                         break;
                     }
                 }
-            }),
+                x += 50.;
+                if x > region.size.width {
+                    break;
+                }
+            }
+        });
+        board.add_child(Todo::new(point2!(100., 100.)));
+
+        App {
+            window_buttons: WindowButtons::new(),
+            resize_handles: ResizeHandles::new(),
+            board,
         }
     }
 }
@@ -58,13 +67,13 @@ impl Element for App {
     }
 
     fn layout(&mut self, min: Size2, max: Size2, cx: &mut LayoutContext) -> Size2 {
+        self.board.layout(min, max, cx).position(Point2::ZERO, cx);
         self.window_buttons
-            .layout(min, max, cx)
+            .layout(size2!(0., 0.), max, cx)
             .position(Point2::ZERO, cx);
         self.resize_handles
             .layout(min, max, cx)
             .position(Point2::ZERO, cx);
-        self.board.layout(min, max, cx).position(Point2::ZERO, cx);
 
         max
     }

@@ -5,6 +5,7 @@ use std::{
 };
 
 use glamour::prelude::*;
+use mockall::*;
 use vide::{
     prelude::*,
     winit::{
@@ -85,8 +86,8 @@ impl EventState {
 
 pub struct Context<'a> {
     event_state: &'a EventState,
-    event_loop: &'a ActiveEventLoop,
-    window: Arc<Window>,
+    event_loop: &'a dyn ContextEventLoop,
+    window: Arc<dyn ContextWindow>,
     element_token: Token,
 }
 
@@ -101,8 +102,8 @@ impl<'a> Deref for Context<'a> {
 impl<'a> Context<'a> {
     pub fn new(
         event_state: &'a EventState,
-        event_loop: &'a ActiveEventLoop,
-        window: Arc<Window>,
+        event_loop: &'a dyn ContextEventLoop,
+        window: Arc<dyn ContextWindow>,
         element_token: Token,
     ) -> Context<'a> {
         Context {
@@ -161,6 +162,64 @@ impl<'a> Context<'a> {
             window: self.window.clone(),
             element_token,
         }
+    }
+}
+
+#[automock]
+pub trait ContextEventLoop {
+    fn exit(&self);
+}
+
+impl ContextEventLoop for ActiveEventLoop {
+    fn exit(&self) {
+        self.exit();
+    }
+}
+
+#[automock]
+pub trait ContextWindow {
+    fn set_maximized(&self, maximized: bool);
+    fn is_maximized(&self) -> bool;
+    fn set_minimized(&self, minimized: bool);
+    fn is_minimized(&self) -> Option<bool>;
+    fn drag_window(&self) -> Result<(), String>;
+    fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), String>;
+    fn set_cursor(&self, cursor: Cursor);
+    fn request_redraw(&self);
+}
+
+impl ContextWindow for Window {
+    fn set_maximized(&self, maximized: bool) {
+        self.set_maximized(maximized);
+    }
+
+    fn is_maximized(&self) -> bool {
+        self.is_maximized()
+    }
+
+    fn set_minimized(&self, minimized: bool) {
+        self.set_minimized(minimized);
+    }
+
+    fn is_minimized(&self) -> Option<bool> {
+        self.is_minimized()
+    }
+
+    fn drag_window(&self) -> Result<(), String> {
+        self.drag_window().map_err(|e| e.to_string())
+    }
+
+    fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), String> {
+        self.drag_resize_window(direction)
+            .map_err(|e| e.to_string())
+    }
+
+    fn set_cursor(&self, cursor: Cursor) {
+        self.set_cursor(cursor);
+    }
+
+    fn request_redraw(&self) {
+        self.request_redraw();
     }
 }
 

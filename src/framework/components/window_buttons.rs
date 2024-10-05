@@ -142,26 +142,23 @@ impl Element for WindowButtons {
         self.minimize.update(cx);
     }
 
-    fn layout(&mut self, min: Size2, max: Size2, cx: &mut LayoutContext) -> Size2 {
+    fn layout(&mut self, _min: Size2, max: Size2, cx: &mut LayoutContext) -> Size2 {
         let mut current_x = max.width;
-        let mut height: f32 = 0.;
+        let button_size = size2!(TITLEBAR_HEIGHT * BUTTON_ASPECT_RATIO, TITLEBAR_HEIGHT);
 
-        let close_result = self.close.layout(min, max, cx);
+        let close_result = self.close.layout(button_size, button_size, cx);
         current_x -= close_result.size().width;
-        height = height.max(close_result.size().height);
         close_result.position(point2!(current_x, 0.), cx);
 
-        let maximize_result = self.maximize.layout(min, max, cx);
+        let maximize_result = self.maximize.layout(button_size, button_size, cx);
         current_x -= maximize_result.size().width;
-        height = height.max(maximize_result.size().height);
         maximize_result.position(point2!(current_x, 0.), cx);
 
-        let minimize_result = self.minimize.layout(min, max, cx);
+        let minimize_result = self.minimize.layout(button_size, button_size, cx);
         current_x -= minimize_result.size().width;
-        height = height.max(minimize_result.size().height);
         minimize_result.position(point2!(current_x, 0.), cx);
 
-        size2!(max.width, height)
+        size2!(max.width, TITLEBAR_HEIGHT)
     }
 
     fn draw(&self, cx: &mut DrawContext) {

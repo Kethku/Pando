@@ -7,7 +7,6 @@ use crate::framework::{
     element::{Element, ElementPointer},
     geometry::*,
     mouse_region::MouseRegion,
-    token::Token,
 };
 
 const EDGE_DEPTH: f32 = 8.;
@@ -52,16 +51,12 @@ impl Element for ResizeHandles {
 }
 
 struct EdgeHandle {
-    token: Token,
     direction: Cardinal,
 }
 
 impl EdgeHandle {
     fn new(direction: Cardinal) -> ElementPointer<Self> {
-        ElementPointer::new(Self {
-            token: Token::new(),
-            direction,
-        })
+        ElementPointer::new(Self { direction })
     }
 
     fn resize_direction(&self) -> ResizeDirection {
@@ -92,7 +87,7 @@ impl Element for EdgeHandle {
         let rect = cx.window_rect();
 
         cx.add_mouse_region(
-            MouseRegion::new(self.token, rect.edge_rect(self.direction, EDGE_DEPTH))
+            MouseRegion::new(cx.token(), rect.edge_rect(self.direction, EDGE_DEPTH))
                 .with_icon(self.icon())
                 .on_down({
                     let direction = self.resize_direction();
@@ -103,16 +98,12 @@ impl Element for EdgeHandle {
 }
 
 struct CornerHandle {
-    token: Token,
     direction: Ordinal,
 }
 
 impl CornerHandle {
     fn new(direction: Ordinal) -> ElementPointer<Self> {
-        ElementPointer::new(Self {
-            token: Token::new(),
-            direction,
-        })
+        ElementPointer::new(Self { direction })
     }
 
     fn resize_direction(&self) -> ResizeDirection {
@@ -143,7 +134,7 @@ impl Element for CornerHandle {
         let rect = cx.window_rect();
 
         cx.add_mouse_region(
-            MouseRegion::new(self.token, rect.corner_square(self.direction, CORNER_DEPTH))
+            MouseRegion::new(cx.token(), rect.corner_square(self.direction, CORNER_DEPTH))
                 .with_icon(self.icon())
                 .on_down({
                     let direction = self.resize_direction();

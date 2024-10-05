@@ -48,9 +48,10 @@ impl<Child: Pinnable> Element for Board<Child> {
     }
 
     fn layout(&mut self, _min: Size2, max: Size2, cx: &mut LayoutContext) -> Size2 {
+        let offset = self.offset();
         for child in self.children.iter_mut() {
             let result = child.layout(Size2::ZERO, Size2::INFINITY, cx);
-            let position = child.center() - result.size().to_vector() / 2.;
+            let position = offset + child.center().to_vector() - result.size().to_vector() / 2.;
             result.position(position, cx);
         }
 

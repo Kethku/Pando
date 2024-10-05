@@ -65,8 +65,8 @@ impl Element for Button {
         }
     }
 
-    fn layout(&mut self, min: Size2, max: Size2, _cx: &mut LayoutContext) -> Size2 {
-        self.size.clamp(min, max)
+    fn layout(&mut self, _min: Size2, _max: Size2, _cx: &mut LayoutContext) -> Size2 {
+        self.size
     }
 
     fn draw(&self, cx: &mut DrawContext) {
