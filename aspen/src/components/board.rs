@@ -1,34 +1,33 @@
 use std::{cell::RefCell, rc::Rc};
 
-use vide::prelude::*;
+use vello::kurbo::{Affine, Point, Rect, Size};
 
 use crate::{
     context::{DrawContext, LayoutContext, UpdateContext},
     element::{Element, ElementPointer},
-    mouse_region::MouseRegion,
 };
 
 pub trait Pinnable: Element {
-    fn center(&self) -> Point2;
+    fn center(&self) -> Point;
 }
 
 pub struct Board<Child: Pinnable> {
-    draw_background: Box<dyn Fn(Point2, Rect, &mut DrawContext)>,
+    draw_background: Box<dyn Fn(Rect, &mut DrawContext)>,
     children: Vec<ElementPointer<Child>>,
 
-    offset: Rc<RefCell<Point2>>,
+    transform: Rc<RefCell<Affine>>,
 }
 
 impl<Child: Pinnable> Board<Child> {
     pub fn new(
-        offset: Point2,
-        draw_background: impl Fn(Point2, Rect, &mut DrawContext) + 'static,
+        transform: Affine,
+        draw_background: impl Fn(Rect, &mut DrawContext) + 'static,
     ) -> ElementPointer<Self> {
         ElementPointer::new(Self {
             draw_background: Box::new(draw_background),
             children: Vec::new(),
 
-            offset: Rc::new(RefCell::new(offset)),
+            transform: Rc::new(RefCell::new(transform)),
         })
     }
 
@@ -36,8 +35,8 @@ impl<Child: Pinnable> Board<Child> {
         self.children.push(child);
     }
 
-    pub fn offset(&self) -> Point2 {
-        *self.offset.borrow()
+    pub fn transform(&self) -> Affine {
+        *self.transform.borrow()
     }
 }
 
@@ -48,11 +47,10 @@ impl<Child: Pinnable> Element for Board<Child> {
         }
     }
 
-    fn layout(&mut self, _min: Size2, max: Size2, cx: &mut LayoutContext) -> Size2 {
-        let offset = self.offset();
+    fn layout(&mut self, _min: Size, max: Size, cx: &mut LayoutContext) -> Size {
         for child in self.children.iter_mut() {
-            let result = child.layout(Size2::ZERO, Size2::INFINITY, cx);
-            let position = offset + child.center().to_vector() - result.size().to_vector() / 2.;
+            let result = child.layout(Size::ZERO, Size::INFINITY, cx);
+            let position = child.center() - result.size().to_vec2() / 2.;
             result.position(position, cx);
         }
 
@@ -60,19 +58,43 @@ impl<Child: Pinnable> Element for Board<Child> {
     }
 
     fn draw(&self, cx: &mut DrawContext) {
-        cx.add_mouse_region(MouseRegion::new(cx.token(), cx.region()).on_drag({
-            let offset = self.offset.clone();
-            move |_down, cx| {
-                let mut offset = offset.borrow_mut();
-                *offset += cx.mouse_delta();
-                cx.request_redraw();
-            }
-        }));
+        cx.mouse_region(cx.region())
+            .on_drag({
+                let transform = self.transform.clone();
+                move |_down, cx| {
+                    let mut transform = transform.borrow_mut();
+                    *transform = transform.then_translate(cx.mouse_delta());
+                    cx.request_redraw();
+                }
+            })
+            .on_scroll({
+                let transform = self.transform.clone();
+                move |cx| {
+                    let mut transform = transform.borrow_mut();
+                    let new_transform = transform
+                        .then_scale_about(1.0 + cx.scroll_delta().y / 100.0, cx.mouse_position());
+                    let test_length = ((new_transform * Point::new(1., 1.))
+                        - (new_transform * Point::new(0., 0.)))
+                    .length();
+                    if test_length < 1000. && test_length > 0.1 {
+                        *transform = new_transform;
+                        cx.request_redraw();
+                    }
+                }
+            });
 
-        (self.draw_background)(self.offset(), cx.window_rect(), cx);
+        let region = cx.region();
+        let background = self.transform().inverse().transform_rect_bbox(region);
+
+        cx.push_layer(1.0, &cx.region());
+        cx.transform(self.transform());
+
+        (self.draw_background)(background, cx);
 
         for child in self.children.iter() {
             child.draw(cx);
         }
+
+        cx.pop_layer();
     }
 }

@@ -1,16 +1,17 @@
 use futures::executor::block_on;
 use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
-use vide::{
-    prelude::*,
-    winit::{
-        application::ApplicationHandler,
-        event::{ElementState, MouseButton, WindowEvent},
-        event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-        platform::windows::WindowAttributesExtWindows,
-        window::{Window, WindowAttributes, WindowId},
-    },
-    WinitRenderer,
+use vello::{
+    kurbo::{Point, Size, Vec2},
+    Scene,
+};
+use winit::{
+    application::ApplicationHandler,
+    event::MouseScrollDelta,
+    event::{ElementState, MouseButton, WindowEvent},
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    platform::windows::WindowAttributesExtWindows,
+    window::{Window, WindowAttributes, WindowId},
 };
 
 use crate::{
@@ -18,6 +19,7 @@ use crate::{
     element::{Element, ElementPointer},
     mouse_region::MouseRegionManager,
     token::Token,
+    winit_renderer::WinitRenderer,
 };
 
 struct WinitApplicationHandler<A: Element> {
@@ -42,10 +44,7 @@ impl<A: Element> WinitApplicationHandler<A> {
     }
 
     async fn create_renderer(window: Arc<Window>) -> WinitRenderer {
-        WinitRenderer::new(window)
-            .await
-            .with_default_drawables()
-            .await
+        WinitRenderer::new(window).await
     }
 
     fn context<'a>(&'a self, event_loop: &'a ActiveEventLoop, element_token: Token) -> Context<'a> {
@@ -85,7 +84,7 @@ impl<A: Element> WinitApplicationHandler<A> {
                     self.event_state.window_size,
                     &mut layout_context,
                 );
-                result.position(point2!(0., 0.), &mut layout_context);
+                result.position(Point::new(0., 0.), &mut layout_context);
             }
 
             mouse_region_manager.clear_regions();
@@ -122,7 +121,7 @@ impl<A: Element> ApplicationHandler for WinitApplicationHandler<A> {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::CursorMoved { position, .. } => {
-                self.event_state.mouse_position = point2!(position.x as f32, position.y as f32);
+                self.event_state.mouse_position = Point::new(position.x, position.y);
                 self.renderer.as_ref().unwrap().window.request_redraw();
             }
             WindowEvent::MouseInput {
@@ -131,6 +130,18 @@ impl<A: Element> ApplicationHandler for WinitApplicationHandler<A> {
                 ..
             } => {
                 self.event_state.mouse_down = state == ElementState::Pressed;
+                self.renderer.as_ref().unwrap().window.request_redraw();
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                match delta {
+                    MouseScrollDelta::LineDelta(x, y) => {
+                        self.event_state.scroll_delta += Vec2::new(x as f64 * 10., y as f64 * 10.)
+                    }
+                    MouseScrollDelta::PixelDelta(delta) => {
+                        self.event_state.scroll_delta += Vec2::new(delta.x as f64, delta.y as f64)
+                    }
+                }
+
                 self.renderer.as_ref().unwrap().window.request_redraw();
             }
             WindowEvent::RedrawRequested => {
@@ -142,7 +153,7 @@ impl<A: Element> ApplicationHandler for WinitApplicationHandler<A> {
                     .unwrap()
                     .resize(new_size.width, new_size.height);
                 self.event_state.window_size =
-                    size2!(new_size.width as f32, new_size.height as f32);
+                    Size::new(new_size.width as f64, new_size.height as f64);
                 self.force_redraw = true;
                 self.renderer.as_ref().unwrap().window.request_redraw();
             }
@@ -169,10 +180,6 @@ impl<A: Element> ApplicationHandler for WinitApplicationHandler<A> {
         } else {
             self.renderer.as_mut().unwrap().resumed();
         }
-    }
-
-    fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
-        self.renderer.as_mut().unwrap().suspended();
     }
 }
 

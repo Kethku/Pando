@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
-use vide::{prelude::*, winit::window::CursorIcon};
+use vello::kurbo::{Affine, BezPath, Point, Shape, Vec2};
+use winit::window::CursorIcon;
 
 use crate::{
     context::{Context, EventContext},
@@ -8,70 +9,83 @@ use crate::{
 };
 
 pub struct MouseRegion {
-    rect: Rect,
     token: Token,
+    region: BezPath,
+    transform: Affine,
     icon: Option<CursorIcon>,
-    on_drag: Option<Box<dyn Fn(Point2, &mut EventContext)>>,
+    on_drag: Option<Box<dyn Fn(Point, &mut EventContext)>>,
     on_hover: Option<Box<dyn Fn(&mut EventContext)>>,
     on_leave: Option<Box<dyn Fn(&mut EventContext)>>,
     on_down: Option<Box<dyn Fn(&mut EventContext)>>,
     on_up: Option<Box<dyn Fn(&mut EventContext)>>,
-    on_clicked: Option<Box<dyn Fn(&mut EventContext)>>,
+    on_click: Option<Box<dyn Fn(&mut EventContext)>>,
+    on_scroll: Option<Box<dyn Fn(&mut EventContext)>>,
 }
 
 impl MouseRegion {
-    pub fn new(token: Token, rect: Rect) -> Self {
+    pub fn new(token: Token, shape: impl Shape, transform: Affine) -> Self {
         MouseRegion {
-            rect,
+            region: transform * shape.to_path(0.1),
             token,
+            transform,
             icon: None,
             on_hover: None,
             on_leave: None,
             on_down: None,
             on_drag: None,
             on_up: None,
-            on_clicked: None,
+            on_click: None,
+            on_scroll: None,
         }
     }
 
-    pub fn with_icon(mut self, icon: CursorIcon) -> Self {
+    fn contains(&self, point: Point) -> bool {
+        self.region.contains(point)
+    }
+
+    pub fn with_icon(&mut self, icon: CursorIcon) -> &mut Self {
         self.icon = Some(icon);
         self
     }
 
-    pub fn on_hover<F: Fn(&mut EventContext) + 'static>(mut self, f: F) -> Self {
+    pub fn on_hover<F: Fn(&mut EventContext) + 'static>(&mut self, f: F) -> &mut Self {
         self.on_hover = Some(Box::new(f));
         self
     }
 
-    pub fn on_leave<F: Fn(&mut EventContext) + 'static>(mut self, f: F) -> Self {
+    pub fn on_leave<F: Fn(&mut EventContext) + 'static>(&mut self, f: F) -> &mut Self {
         self.on_leave = Some(Box::new(f));
         self
     }
 
-    pub fn on_down<F: Fn(&mut EventContext) + 'static>(mut self, f: F) -> Self {
+    pub fn on_down<F: Fn(&mut EventContext) + 'static>(&mut self, f: F) -> &mut Self {
         self.on_down = Some(Box::new(f));
         self
     }
 
-    pub fn on_drag<F: Fn(Point2, &mut EventContext) + 'static>(mut self, f: F) -> Self {
+    pub fn on_drag<F: Fn(Point, &mut EventContext) + 'static>(&mut self, f: F) -> &mut Self {
         self.on_drag = Some(Box::new(f));
         self
     }
 
-    pub fn on_up<F: Fn(&mut EventContext) + 'static>(mut self, f: F) -> Self {
+    pub fn on_up<F: Fn(&mut EventContext) + 'static>(&mut self, f: F) -> &mut Self {
         self.on_up = Some(Box::new(f));
         self
     }
 
-    pub fn on_clicked<F: Fn(&mut EventContext) + 'static>(mut self, f: F) -> Self {
-        self.on_clicked = Some(Box::new(f));
+    pub fn on_click<F: Fn(&mut EventContext) + 'static>(&mut self, f: F) -> &mut Self {
+        self.on_click = Some(Box::new(f));
+        self
+    }
+
+    pub fn on_scroll<F: Fn(&mut EventContext) + 'static>(&mut self, f: F) -> &mut Self {
+        self.on_scroll = Some(Box::new(f));
         self
     }
 }
 
 pub struct MouseRegionManager {
-    down: Option<Point2>,
+    down: Option<Point>,
     current_dragger: Option<Token>,
     regions: Vec<MouseRegion>,
     hovered_regions: HashSet<Token>,
@@ -101,7 +115,7 @@ impl MouseRegionManager {
         let mut icon_set = false;
 
         if cx.mouse_just_down() {
-            self.down = Some(cx.mouse_position());
+            self.down = Some(cx.actual_mouse_position());
         }
 
         let current_dragger = self.current_dragger;
@@ -114,26 +128,30 @@ impl MouseRegionManager {
         let mut cx = EventContext::new(cx, &mut redraw_requested);
         for region in self.regions.iter().rev() {
             if self.hovered_regions.contains(&region.token) {
-                if !region.rect.contains(&cx.mouse_position()) {
+                if !region.contains(cx.actual_mouse_position()) {
                     if let Some(on_leave) = &region.on_leave {
+                        cx.transform = region.transform;
                         on_leave(&mut cx);
                     }
                 }
             }
         }
 
+        // Left mouse button handling
         for region in self.regions.iter().rev() {
             if let Some(down) = down {
                 if current_dragger == Some(region.token) && cx.mouse_down() {
                     if let Some(on_drag) = &region.on_drag {
+                        cx.transform = region.transform;
                         on_drag(down, &mut cx);
                     }
                 }
             }
 
-            if region.rect.contains(&cx.mouse_position()) {
+            if region.contains(cx.actual_mouse_position()) {
                 if !icon_set {
                     if let Some(icon) = region.icon {
+                        cx.transform = region.transform;
                         cx.set_cursor(icon);
                         icon_set = true;
                     }
@@ -145,6 +163,7 @@ impl MouseRegionManager {
 
                 if !cx.mouse_down() {
                     if let Some(on_hover) = &region.on_hover {
+                        cx.transform = region.transform;
                         on_hover(&mut cx);
                         self.hovered_regions.insert(region.token);
                     }
@@ -152,6 +171,7 @@ impl MouseRegionManager {
 
                 if cx.mouse_just_down() {
                     if let Some(on_down) = &region.on_down {
+                        cx.transform = region.transform;
                         on_down(&mut cx);
                     }
 
@@ -161,12 +181,14 @@ impl MouseRegionManager {
 
                 if cx.mouse_released() {
                     if let Some(on_up) = &region.on_up {
+                        cx.transform = region.transform;
                         on_up(&mut cx);
                     }
 
-                    if let Some(on_clicked) = &region.on_clicked {
+                    if let Some(on_click) = &region.on_click {
                         if current_dragger == Some(region.token) {
-                            on_clicked(&mut cx);
+                            cx.transform = region.transform;
+                            on_click(&mut cx);
                         }
                         consume = true;
                     }
@@ -174,6 +196,18 @@ impl MouseRegionManager {
 
                 if consume {
                     break;
+                }
+            }
+        }
+
+        for region in self.regions.iter().rev() {
+            if region.contains(cx.actual_mouse_position()) {
+                if cx.scroll_delta() != Vec2::ZERO {
+                    if let Some(on_scroll) = &region.on_scroll {
+                        cx.transform = region.transform;
+                        on_scroll(&mut cx);
+                        break;
+                    }
                 }
             }
         }

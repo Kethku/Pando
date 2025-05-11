@@ -11,13 +11,13 @@ pub struct Todo {
 }
 
 struct TodoState {
-    center: Point2,
+    center: Point,
 }
 
 impl Todo {
-    pub fn new(center: Point2) -> ElementPointer<Self> {
+    pub fn new(center: Point) -> ElementPointer<Self> {
         ElementPointer::new(Self {
-            editor: TextEditor::new(*FOREGROUND),
+            editor: TextEditor::new(Brush::Solid(*FOREGROUND)),
 
             state: Rc::new(RefCell::new(TodoState { center })),
         })
@@ -25,50 +25,40 @@ impl Todo {
 }
 
 impl Element for Todo {
-    fn layout(&mut self, min: Size2, max: Size2, cx: &mut LayoutContext) -> Size2 {
-        let editor_result = self
-            .editor
-            .layout(min - size2!(20., 20.), max - size2!(20., 20.), cx);
-        let todo_size = editor_result.size() + size2!(20., 20.);
-        editor_result.position(point2!(10., 10.), cx);
+    fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size {
+        let editor_result =
+            self.editor
+                .layout(min - Size::new(20., 20.), max - Size::new(20., 20.), cx);
+        let todo_size = editor_result.size() + Size::new(20., 20.);
+        editor_result.position(Point::new(10., 10.), cx);
 
         todo_size.clamp(min, max)
     }
 
     fn draw(&self, cx: &mut DrawContext) {
-        let region = cx.region();
+        let region = cx.region().inflate(2., 2.).to_rounded_rect(5.);
 
-        cx.add_mouse_region(MouseRegion::new(cx.token(), region).on_drag({
+        cx.mouse_region(region).on_drag({
             let state = self.state.clone();
             move |_down, cx| {
                 let mut state = state.borrow_mut();
                 state.center += cx.mouse_delta();
                 cx.request_redraw();
             }
-        }));
-
-        cx.add_layer(
-            Layer::new()
-                .with_quad(
-                    Quad::new(
-                        region.translate(vector!(0., 2.5)),
-                        Srgba::new(0., 0., 0., 0.6),
-                    )
-                    .with_edge_blur(10.)
-                    .with_corner_radius(10.),
-                )
-                .with_quad(
-                    Quad::new(region.inflate((2., 2.).into()), *BACKGROUND5).with_corner_radius(7.),
-                )
-                .with_quad(Quad::new(region, *BACKGROUND1).with_corner_radius(5.)),
-        );
+        });
+        cx.set_fill_brush(Brush::Solid(Color::new([0., 0., 0., 0.6])));
+        cx.blurred(region + Vec2::new(0., 2.5), 10.);
+        cx.set_fill_brush(Brush::Solid(*BACKGROUND1));
+        cx.set_stroke_brush(Brush::Solid(*BACKGROUND5));
+        cx.set_stroke_style(Stroke::new(2.));
+        cx.stroked_fill(&region);
 
         self.editor.draw(cx);
     }
 }
 
 impl Pinnable for Todo {
-    fn center(&self) -> Point2 {
+    fn center(&self) -> Point {
         self.state.borrow().center
     }
 }

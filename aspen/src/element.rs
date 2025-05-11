@@ -1,5 +1,6 @@
 use std::ops::{Deref, DerefMut};
-use vide::prelude::*;
+
+use vello::kurbo::{Point, Rect, Size};
 
 use crate::{
     context::{DrawContext, LayoutContext, UpdateContext},
@@ -8,7 +9,7 @@ use crate::{
 
 pub trait Element {
     fn update(&mut self, _cx: &mut UpdateContext) {}
-    fn layout(&mut self, min: Size2, max: Size2, cx: &mut LayoutContext) -> Size2;
+    fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size;
     fn draw(&self, _cx: &mut DrawContext) {}
 }
 
@@ -35,7 +36,7 @@ impl<E: Element> ElementPointer<E> {
     }
 
     #[must_use]
-    pub fn layout(&mut self, min: Size2, max: Size2, cx: &mut LayoutContext) -> LayoutResult {
+    pub fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> LayoutResult {
         let mut child_cx = cx.child(self.token);
         let size = self.element.layout(min, max, &mut child_cx).clamp(min, max);
         LayoutResult {
@@ -72,23 +73,23 @@ impl<E: Element> From<E> for ElementPointer<E> {
 
 #[derive(Debug)]
 pub struct LayoutResult {
-    size: Size2,
+    size: Size,
     token: Token,
 }
 
 impl LayoutResult {
-    pub fn size(&self) -> Size2 {
+    pub fn size(&self) -> Size {
         self.size
     }
 
-    pub fn position(self, position: Point2, cx: &mut LayoutContext) {
-        cx.translate_descendants(self.token, position.to_vector());
-        cx.add_region(self.token, Rect::new(position, self.size));
+    pub fn position(self, position: Point, cx: &mut LayoutContext) {
+        cx.translate_descendants(self.token, position.to_vec2());
+        cx.add_region(self.token, Rect::from_origin_size(position, self.size));
     }
 }
 
 impl Deref for LayoutResult {
-    type Target = Size2;
+    type Target = Size;
 
     fn deref(&self) -> &Self::Target {
         &self.size
@@ -98,8 +99,6 @@ impl Deref for LayoutResult {
 #[cfg(test)]
 mod tests {
     use std::{collections::HashMap, sync::Arc};
-
-    use vide::prelude::*;
 
     use super::*;
     use crate::{
@@ -121,12 +120,12 @@ mod tests {
         }
     }
     impl Element for TestApp {
-        fn layout(&mut self, min: Size2, max: Size2, cx: &mut LayoutContext) -> Size2 {
+        fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size {
             self.component
                 .layout(min, max, cx)
-                .position(point2!(10., 10.), cx);
+                .position(Point::new(10., 10.), cx);
 
-            size2!(70., 70.)
+            Size::new(70., 70.)
         }
     }
 
@@ -137,8 +136,8 @@ mod tests {
         }
     }
     impl Element for TestComponent {
-        fn layout(&mut self, _min: Size2, _max: Size2, _cx: &mut LayoutContext) -> Size2 {
-            size2!(50., 50.)
+        fn layout(&mut self, _min: Size, _max: Size, _cx: &mut LayoutContext) -> Size {
+            Size::new(50., 50.)
         }
     }
 
@@ -158,14 +157,14 @@ mod tests {
         let mut layout_cx = LayoutContext::new(cx, &mut regions, &mut children);
 
         let result = LayoutResult {
-            size: size2!(10., 10.),
+            size: Size::new(10., 10.),
             token,
         };
-        result.position(point2!(5., 5.), &mut layout_cx);
+        result.position(Point::new(5., 5.), &mut layout_cx);
 
         assert_eq!(
             regions[&token],
-            Rect::new(point2!(5., 5.), size2!(10., 10.))
+            Rect::from_origin_size(Point::new(5., 5.), Point::new(10., 10.))
         );
     }
 
@@ -183,16 +182,16 @@ mod tests {
         let mut children = HashMap::new();
         let mut layout_cx = LayoutContext::new(cx, &mut regions, &mut children);
 
-        app.layout(size2!(0., 0.), size2!(100., 100.), &mut layout_cx)
-            .position(point2!(10., 10.), &mut layout_cx);
+        app.layout(Size::new(0., 0.), Size::new(100., 100.), &mut layout_cx)
+            .position(Point::new(10., 10.), &mut layout_cx);
 
         assert_eq!(
             regions[&app.token()],
-            Rect::new(point2!(10., 10.), size2!(70., 70.))
+            Rect::from_origin_size(Point::new(10., 10.), Size::new(70., 70.))
         );
         assert_eq!(
             regions[&app.component.token()],
-            Rect::new(point2!(20., 20.), size2!(50., 50.))
+            Rect::from_origin_size(Point::new(20., 20.), Size::new(50., 50.))
         );
     }
 
@@ -210,8 +209,8 @@ mod tests {
             let cx = Context::new(&event_state, &event_loop, window.clone(), app.token());
             let mut layout_cx = LayoutContext::new(cx, &mut regions, &mut children);
 
-            app.layout(size2!(0., 0.), size2!(100., 100.), &mut layout_cx)
-                .position(point2!(10., 10.), &mut layout_cx);
+            app.layout(Size::new(0., 0.), Size::new(100., 100.), &mut layout_cx)
+                .position(Point::new(10., 10.), &mut layout_cx);
         }
 
         let cx = Context::new(&event_state, &event_loop, window.clone(), app.token());
@@ -221,12 +220,12 @@ mod tests {
 
         assert_eq!(
             draw_cx.region(),
-            Rect::new(point2!(10., 10.), size2!(70., 70.))
+            Rect::from_origin_size(Point::new(10., 10.), Size::new(70., 70.))
         );
         let child_draw_cx = draw_cx.child(app.component.token());
         assert_eq!(
             child_draw_cx.region(),
-            Rect::new(point2!(20., 20.), size2!(50., 50.))
+            Rect::from_origin_size(Point::new(20., 20.), Size::new(50., 50.))
         );
     }
 }

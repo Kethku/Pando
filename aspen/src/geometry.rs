@@ -1,4 +1,4 @@
-use vide::prelude::*;
+use vello::kurbo::{Point, Rect, Size};
 
 #[derive(Copy, Clone)]
 pub enum Cardinal {
@@ -35,48 +35,49 @@ impl Ordinal {
 }
 
 pub trait RectExt {
-    fn edge_rect(&self, cardinal: Cardinal, depth: f32) -> Rect;
-    fn corner_square(&self, ordinal: Ordinal, depth: f32) -> Rect;
+    fn edge_rect(&self, cardinal: Cardinal, depth: f64) -> Rect;
+    fn corner_square(&self, ordinal: Ordinal, depth: f64) -> Rect;
 }
 
 impl RectExt for Rect {
-    fn edge_rect(&self, cardinal: Cardinal, depth: f32) -> Rect {
+    fn edge_rect(&self, cardinal: Cardinal, depth: f64) -> Rect {
         match cardinal {
-            Cardinal::North => Rect::new(
-                point2!(self.min().x, self.min().y),
-                size!(self.width(), depth),
+            Cardinal::North => Rect::from_origin_size(
+                Point::new(self.min_x(), self.min_y()),
+                Size::new(self.width(), depth),
             ),
-            Cardinal::South => Rect::new(
-                point2!(self.min().x, self.max().y - depth),
-                size!(self.width(), depth),
+            Cardinal::South => Rect::from_origin_size(
+                Point::new(self.min_x(), self.max_y() - depth),
+                Size::new(self.width(), depth),
             ),
-            Cardinal::East => Rect::new(
-                point2!(self.max().x - depth, self.min().y),
-                size!(depth, self.height()),
+            Cardinal::East => Rect::from_origin_size(
+                Point::new(self.max_x() - depth, self.min_y()),
+                Size::new(depth, self.height()),
             ),
-            Cardinal::West => Rect::new(
-                point2!(self.min().x, self.min().y),
-                size!(depth, self.height()),
+            Cardinal::West => Rect::from_origin_size(
+                Point::new(self.min_x(), self.min_y()),
+                Size::new(depth, self.height()),
             ),
         }
     }
 
-    fn corner_square(&self, ordinal: Ordinal, depth: f32) -> Rect {
+    fn corner_square(&self, ordinal: Ordinal, depth: f64) -> Rect {
         match ordinal {
-            Ordinal::NorthEast => Rect::new(
-                point2!(self.max().x - depth, self.min().y),
-                size!(depth, depth),
+            Ordinal::NorthEast => Rect::from_origin_size(
+                Point::new(self.max_x() - depth, self.min_y()),
+                Size::new(depth, depth),
             ),
-            Ordinal::NorthWest => {
-                Rect::new(point2!(self.min().x, self.min().y), size!(depth, depth))
-            }
-            Ordinal::SouthEast => Rect::new(
-                point2!(self.max().x - depth, self.max().y - depth),
-                size!(depth, depth),
+            Ordinal::NorthWest => Rect::from_origin_size(
+                Point::new(self.min_x(), self.min_y()),
+                Size::new(depth, depth),
             ),
-            Ordinal::SouthWest => Rect::new(
-                point2!(self.min().x, self.max().y - depth),
-                size!(depth, depth),
+            Ordinal::SouthEast => Rect::from_origin_size(
+                Point::new(self.max_x() - depth, self.max_y() - depth),
+                Size::new(depth, depth),
+            ),
+            Ordinal::SouthWest => Rect::from_origin_size(
+                Point::new(self.min_x(), self.max_y() - depth),
+                Size::new(depth, depth),
             ),
         }
     }

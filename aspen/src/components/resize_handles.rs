@@ -1,17 +1,14 @@
-use vide::{
-    prelude::*,
-    winit::window::{CursorIcon, ResizeDirection},
-};
+use vello::kurbo::{Point, Size};
+use winit::window::{CursorIcon, ResizeDirection};
 
 use crate::{
     context::{DrawContext, LayoutContext},
     element::{Element, ElementPointer},
     geometry::*,
-    mouse_region::MouseRegion,
 };
 
-const EDGE_DEPTH: f32 = 8.;
-const CORNER_DEPTH: f32 = 12.;
+const EDGE_DEPTH: f64 = 8.;
+const CORNER_DEPTH: f64 = 12.;
 
 pub struct ResizeHandles {
     edge_handles: [ElementPointer<EdgeHandle>; 4],
@@ -28,13 +25,13 @@ impl ResizeHandles {
 }
 
 impl Element for ResizeHandles {
-    fn layout(&mut self, min: Size2, max: Size2, cx: &mut LayoutContext) -> Size2 {
+    fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size {
         for handle in self.edge_handles.iter_mut() {
-            handle.layout(min, max, cx).position(Point2::ZERO, cx);
+            handle.layout(min, max, cx).position(Point::ZERO, cx);
         }
 
         for handle in self.corner_handles.iter_mut() {
-            handle.layout(min, max, cx).position(Point2::ZERO, cx);
+            handle.layout(min, max, cx).position(Point::ZERO, cx);
         }
 
         max
@@ -80,21 +77,19 @@ impl EdgeHandle {
 }
 
 impl Element for EdgeHandle {
-    fn layout(&mut self, _min: Size2, max: Size2, _cx: &mut LayoutContext) -> Size2 {
+    fn layout(&mut self, _min: Size, max: Size, _cx: &mut LayoutContext) -> Size {
         max
     }
 
     fn draw(&self, cx: &mut DrawContext) {
-        let rect = cx.window_rect();
+        let rect = cx.actual_window_rect();
 
-        cx.add_mouse_region(
-            MouseRegion::new(cx.token(), rect.edge_rect(self.direction, EDGE_DEPTH))
-                .with_icon(self.icon())
-                .on_down({
-                    let direction = self.resize_direction();
-                    move |cx| cx.drag_resize_window(direction)
-                }),
-        );
+        cx.mouse_region(rect.edge_rect(self.direction, EDGE_DEPTH))
+            .with_icon(self.icon())
+            .on_down({
+                let direction = self.resize_direction();
+                move |cx| cx.drag_resize_window(direction)
+            });
     }
 }
 
@@ -127,20 +122,18 @@ impl CornerHandle {
 }
 
 impl Element for CornerHandle {
-    fn layout(&mut self, _min: Size2, max: Size2, _cx: &mut LayoutContext) -> Size2 {
+    fn layout(&mut self, _min: Size, max: Size, _cx: &mut LayoutContext) -> Size {
         max
     }
 
     fn draw(&self, cx: &mut DrawContext) {
-        let rect = cx.window_rect();
+        let rect = cx.actual_window_rect();
 
-        cx.add_mouse_region(
-            MouseRegion::new(cx.token(), rect.corner_square(self.direction, CORNER_DEPTH))
-                .with_icon(self.icon())
-                .on_down({
-                    let direction = self.resize_direction();
-                    move |cx| cx.drag_resize_window(direction)
-                }),
-        );
+        cx.mouse_region(rect.corner_square(self.direction, CORNER_DEPTH))
+            .with_icon(self.icon())
+            .on_down({
+                let direction = self.resize_direction();
+                move |cx| cx.drag_resize_window(direction)
+            });
     }
 }

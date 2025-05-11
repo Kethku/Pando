@@ -1,19 +1,19 @@
-use vide::{
-    palette::{FromColor, IntoColor, Oklaba},
-    prelude::*,
+use vello::{
+    kurbo::{Point, Rect, Vec2},
+    peniko::{color::HueDirection, Color},
 };
 
 pub trait Mixable: Sized {
     fn add(&self, other: &Self) -> Self;
     fn sub(&self, other: &Self) -> Self;
-    fn scale(&self, factor: f32) -> Self;
-    fn mix(&self, other: &Self, factor: f32) -> Self {
+    fn scale(&self, factor: f64) -> Self;
+    fn mix(&self, other: &Self, factor: f64) -> Self {
         let factor = factor.clamp(0., 1.);
         self.add(&other.sub(&self).scale(factor))
     }
 }
 
-impl Mixable for f32 {
+impl Mixable for f64 {
     fn add(&self, other: &Self) -> Self {
         self + other
     }
@@ -22,81 +22,71 @@ impl Mixable for f32 {
         self - other
     }
 
-    fn scale(&self, factor: f32) -> Self {
+    fn scale(&self, factor: f64) -> Self {
         self * factor
     }
 }
 
-impl Mixable for Srgba {
+impl Mixable for Color {
     fn add(&self, other: &Self) -> Self {
-        Srgba::new(
-            self.red + other.red,
-            self.green + other.green,
-            self.blue + other.blue,
-            self.alpha + other.alpha,
-        )
+        *self + *other
     }
 
     fn sub(&self, other: &Self) -> Self {
-        Srgba::new(
-            self.red - other.red,
-            self.green - other.green,
-            self.blue - other.blue,
-            self.alpha - other.alpha,
-        )
+        *self - *other
     }
 
-    fn scale(&self, factor: f32) -> Self {
-        Srgba::new(
-            self.red * factor,
-            self.green * factor,
-            self.blue * factor,
-            self.alpha * factor,
-        )
+    fn scale(&self, factor: f64) -> Self {
+        *self * factor as f32
     }
 
-    fn mix(&self, other: &Self, factor: f32) -> Self {
-        let this: Oklaba = (*self).into_color();
-        let other: Oklaba = (*other).into_color();
-        let mixed = vide::palette::Mix::mix(this.premultiply(), other.premultiply(), factor);
-        Srgba::from_color(mixed.unpremultiply())
+    fn mix(&self, other: &Self, factor: f64) -> Self {
+        self.lerp(*other, factor as f32, HueDirection::Shorter)
     }
 }
 
-impl Mixable for Quad {
+impl Mixable for Rect {
     fn add(&self, other: &Self) -> Self {
-        Quad {
-            region: Rect::new(
-                self.region.origin + other.region.origin.into(),
-                self.region.size + other.region.size,
-            ),
-            color: self.color + other.color,
-            corner_radius: self.corner_radius + other.corner_radius,
-            edge_blur: self.edge_blur + other.edge_blur,
-        }
+        Rect::from_origin_size(
+            self.origin() + other.origin().to_vec2(),
+            self.size() + other.size(),
+        )
     }
-
     fn sub(&self, other: &Self) -> Self {
-        Quad {
-            region: Rect::new(
-                self.region.origin - other.region.origin,
-                self.region.size - other.region.size,
-            ),
-            color: self.color - other.color,
-            corner_radius: self.corner_radius - other.corner_radius,
-            edge_blur: self.edge_blur - other.edge_blur,
-        }
+        Rect::from_origin_size(
+            self.origin() - other.origin().to_vec2(),
+            self.size() - other.size(),
+        )
     }
+    fn scale(&self, factor: f64) -> Self {
+        Rect::from_origin_size(
+            (self.origin().to_vec2() * factor).to_point(),
+            self.size() * factor,
+        )
+    }
+}
 
-    fn scale(&self, factor: f32) -> Self {
-        Quad {
-            region: Rect::new(
-                (self.region.origin.to_vector() * factor).to_point(),
-                self.region.size * factor,
-            ),
-            color: self.color * factor,
-            corner_radius: self.corner_radius * factor,
-            edge_blur: self.edge_blur * factor,
-        }
+pub trait RectExt {
+    fn corners(&self) -> [Point; 4];
+}
+
+impl RectExt for Rect {
+    fn corners(&self) -> [Point; 4] {
+        [
+            Point::new(self.x0, self.y0),
+            Point::new(self.x1, self.y0),
+            Point::new(self.x1, self.y1),
+            Point::new(self.x0, self.y1),
+        ]
+    }
+}
+
+pub trait PointExt {
+    fn snap(&self) -> Point;
+}
+
+impl PointExt for Point {
+    fn snap(&self) -> Point {
+        self.floor() + Vec2::new(0.5, 0.5)
     }
 }

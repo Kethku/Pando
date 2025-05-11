@@ -11,35 +11,28 @@ pub struct App {
 
 impl App {
     pub fn new() -> App {
-        let mut board = Board::new(point2!(0., 0.), |offset, region, cx| {
-            cx.update_layer(|_, layer| {
-                layer.add_quad(
-                    Quad::new(Rect::new(point2!(0., 0.), region.size), *BACKGROUND0)
-                        .with_corner_radius(1.),
-                )
-            });
-            let mut x = offset.x % 50.;
+        let mut board = Board::new(Affine::IDENTITY, |bounds, cx| {
+            cx.set_fill_brush(Brush::Solid(*BACKGROUND0));
+            cx.fill(&bounds);
+
+            let mut x = bounds.min_x() - bounds.min_x().rem_euclid(50.);
             loop {
-                let mut y = offset.y % 50.;
+                let mut y = bounds.min_y() - bounds.min_y().rem_euclid(50.);
                 loop {
-                    cx.update_layer(|_, layer| {
-                        layer.add_quad(
-                            Quad::new(Rect::new(point2!(x, y), size2!(2., 2.)), *BACKGROUND5)
-                                .with_corner_radius(1.),
-                        )
-                    });
+                    cx.set_fill_brush(Brush::Solid(*BACKGROUND5));
+                    cx.fill(&Circle::new(Point::new(x, y), 1.));
                     y += 50.;
-                    if y > region.size.height {
+                    if y > bounds.max_y() {
                         break;
                     }
                 }
                 x += 50.;
-                if x > region.size.width {
+                if x > bounds.max_x() {
                     break;
                 }
             }
         });
-        board.add_child(Todo::new(point2!(100., 100.)));
+        board.add_child(Todo::new(Point::new(100., 100.)));
 
         App {
             window_buttons: WindowButtons::new(*BACKGROUND3, *CLOSE, *FOREGROUND),
@@ -56,14 +49,14 @@ impl Element for App {
         self.resize_handles.update(cx);
     }
 
-    fn layout(&mut self, min: Size2, max: Size2, cx: &mut LayoutContext) -> Size2 {
-        self.board.layout(min, max, cx).position(Point2::ZERO, cx);
+    fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size {
+        self.board.layout(min, max, cx).position(Point::ZERO, cx);
         self.window_buttons
-            .layout(size2!(0., 0.), max, cx)
-            .position(Point2::ZERO, cx);
+            .layout(Size::new(0., 0.), max, cx)
+            .position(Point::ZERO, cx);
         self.resize_handles
             .layout(min, max, cx)
-            .position(Point2::ZERO, cx);
+            .position(Point::ZERO, cx);
 
         max
     }
