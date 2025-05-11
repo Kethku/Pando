@@ -1,5 +1,5 @@
 use vello::{
-    kurbo::{Point, Rect, Vec2},
+    kurbo::{Affine, Point, Rect, Vec2},
     peniko::{color::HueDirection, Color},
 };
 
@@ -41,7 +41,7 @@ impl Mixable for Color {
     }
 
     fn mix(&self, other: &Self, factor: f64) -> Self {
-        self.lerp(*other, factor as f32, HueDirection::Shorter)
+        self.lerp(*other, (factor as f32).clamp(0., 1.), HueDirection::Shorter)
     }
 }
 
@@ -88,5 +88,19 @@ pub trait PointExt {
 impl PointExt for Point {
     fn snap(&self) -> Point {
         self.floor() + Vec2::new(0.5, 0.5)
+    }
+}
+
+pub trait AffineExt {
+    fn unskewed_scale(&self) -> Vec2;
+}
+
+impl AffineExt for Affine {
+    fn unskewed_scale(&self) -> Vec2 {
+        let coeffs = self.as_coeffs();
+        Vec2::new(
+            (coeffs[0] * coeffs[0] + coeffs[2] * coeffs[2]).sqrt(),
+            (coeffs[1] * coeffs[1] + coeffs[3] * coeffs[3]).sqrt(),
+        )
     }
 }

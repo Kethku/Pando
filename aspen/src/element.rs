@@ -100,6 +100,8 @@ impl Deref for LayoutResult {
 mod tests {
     use std::{collections::HashMap, sync::Arc};
 
+    use vello::Scene;
+
     use super::*;
     use crate::{
         context::{
@@ -164,7 +166,7 @@ mod tests {
 
         assert_eq!(
             regions[&token],
-            Rect::from_origin_size(Point::new(5., 5.), Point::new(10., 10.))
+            Rect::from_origin_size(Point::new(5., 5.), Size::new(10., 10.))
         );
     }
 

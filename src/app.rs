@@ -1,4 +1,7 @@
+use std::collections::HashSet;
+
 use aspen::prelude::*;
+use ordered_float::OrderedFloat;
 
 use crate::{todo::Todo, util::*};
 
@@ -15,20 +18,44 @@ impl App {
             cx.set_fill_brush(Brush::Solid(*BACKGROUND0));
             cx.fill(&bounds);
 
-            let mut x = bounds.min_x() - bounds.min_x().rem_euclid(50.);
+            if bounds.is_zero_area() {
+                return;
+            }
+
+            let mut spacing = 2048.;
+            let mut filled_spaces = HashSet::new();
             loop {
-                let mut y = bounds.min_y() - bounds.min_y().rem_euclid(50.);
+                spacing = spacing / 2.;
+                let radius = spacing / 75.;
+                let actual_radius = (cx.current_transform().unskewed_scale() * radius).length();
+                if actual_radius < 0.75 {
+                    break;
+                } else if actual_radius > 4. {
+                    continue;
+                }
+
+                let mut x = bounds.min_x() - bounds.min_x().rem_euclid(spacing);
                 loop {
-                    cx.set_fill_brush(Brush::Solid(*BACKGROUND5));
-                    cx.fill(&Circle::new(Point::new(x, y), 1.));
-                    y += 50.;
-                    if y > bounds.max_y() {
+                    let mut y = bounds.min_y() - bounds.min_y().rem_euclid(spacing);
+                    loop {
+                        cx.set_fill_brush(Brush::Solid(
+                            BACKGROUND0.mix(&BACKGROUND5, (actual_radius - 0.75) * 4.),
+                        ));
+                        let point = (OrderedFloat(x), OrderedFloat(y));
+                        if !filled_spaces.contains(&point) {
+                            cx.fill(&Circle::new(Point::new(x, y).snap(), radius));
+                            filled_spaces.insert(point);
+                        }
+
+                        y += spacing;
+                        if y > bounds.max_y() {
+                            break;
+                        }
+                    }
+                    x += spacing;
+                    if x > bounds.max_x() {
                         break;
                     }
-                }
-                x += 50.;
-                if x > bounds.max_x() {
-                    break;
                 }
             }
         });
