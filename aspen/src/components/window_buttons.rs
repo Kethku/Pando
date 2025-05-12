@@ -27,6 +27,7 @@ impl WindowButtons {
     pub fn new(
         title_background: Color,
         close_hover: Color,
+        other_hover: Color,
         foreground: Color,
     ) -> ElementPointer<Self> {
         let button_size = Size::new(TITLEBAR_HEIGHT * BUTTON_ASPECT_RATIO, TITLEBAR_HEIGHT);
@@ -43,14 +44,14 @@ impl WindowButtons {
             maximize: Button::new(
                 button_size,
                 Color::new([0., 0., 0., 0.]),
-                title_background,
+                other_hover,
                 move |rect, cx| Self::draw_maximize_icon(rect, foreground, cx),
                 |cx| cx.toggle_maximized(),
             ),
             minimize: Button::new(
                 button_size,
                 Color::new([0., 0., 0., 0.]),
-                title_background,
+                other_hover,
                 move |rect, cx| Self::draw_minimize_icon(rect, foreground, cx),
                 |cx| cx.minimize(),
             ),

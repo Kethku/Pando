@@ -1,10 +1,15 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
-use vello::kurbo::{Affine, Point, Rect, Size};
+use ordered_float::OrderedFloat;
+use vello::{
+    kurbo::{Affine, Circle, Point, Rect, Size},
+    peniko::{Brush, Color},
+};
 
 use crate::{
     context::{DrawContext, LayoutContext, UpdateContext},
     element::{Element, ElementPointer},
+    util::*,
 };
 
 pub trait Pinnable: Element {
@@ -29,6 +34,60 @@ impl<Child: Pinnable> Board<Child> {
 
             transform: Rc::new(RefCell::new(transform)),
         })
+    }
+
+    pub fn new_dotgrid(transform: Affine, background: Color, dots: Color) -> ElementPointer<Self> {
+        let draw_background = move |bounds: Rect, cx: &mut DrawContext| {
+            cx.set_fill_brush(Brush::Solid(background));
+            cx.fill(&bounds);
+
+            if bounds.is_zero_area() {
+                return;
+            }
+
+            let mut spacing = 2048.;
+            let mut filled_spaces = HashSet::new();
+            loop {
+                spacing = spacing / 2.;
+                let mut radius = spacing / 50.;
+                let scale = cx.current_transform().unskewed_scale().length() / 2.0f64.sqrt();
+                let actual_radius = scale * radius;
+                if actual_radius < 0.25 {
+                    break;
+                } else if actual_radius > 4. {
+                    continue;
+                }
+
+                radius = radius.min(2. / scale);
+
+                let mut x = bounds.min_x() - bounds.min_x().rem_euclid(spacing);
+                loop {
+                    let mut y = bounds.min_y() - bounds.min_y().rem_euclid(spacing);
+                    loop {
+                        cx.set_fill_brush(Brush::Solid(
+                            background.mix(&dots, (actual_radius - 0.5) * 4.),
+                        ));
+
+                        let point = (OrderedFloat(x), OrderedFloat(y));
+                        if !filled_spaces.contains(&point) {
+                            cx.fill(&Circle::new(Point::new(x, y).snap(), radius));
+                            filled_spaces.insert(point);
+                        }
+
+                        y += spacing;
+                        if y > bounds.max_y() {
+                            break;
+                        }
+                    }
+                    x += spacing;
+                    if x > bounds.max_x() {
+                        break;
+                    }
+                }
+            }
+        };
+
+        Self::new(transform, draw_background)
     }
 
     pub fn add_child(&mut self, child: ElementPointer<Child>) {

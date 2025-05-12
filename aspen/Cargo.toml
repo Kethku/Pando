@@ -6,11 +6,12 @@ license.workspace = true
 
 [dependencies]
 futures = "0.3"
+mockall = "0.13"
+ordered-float = "5.0.0"
+parley = "0.4.0"
 rust-embed = "8.2.0"
 serde = "1.0.196"
 serde_derive = "1.0.196"
 serde_json = "1.0.113"
-winit = "0.30.10"
-mockall = "0.13"
-parley = "0.4.0"
 vello = "0.5.0"
+winit = "0.30.10"

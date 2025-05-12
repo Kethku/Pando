@@ -139,6 +139,7 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "mockall",
+ "ordered-float 5.0.0",
  "parley",
  "rust-embed",
  "serde",
@@ -1573,7 +1574,6 @@ dependencies = [
  "bytemuck",
  "futures",
  "mockall",
- "ordered-float 5.0.0",
  "parking_lot",
  "rust-embed",
  "serde",
