@@ -82,9 +82,10 @@ impl LayoutResult {
         self.size
     }
 
-    pub fn position(self, position: Point, cx: &mut LayoutContext) {
+    pub fn position(self, position: Point, cx: &mut LayoutContext) -> Size {
         cx.translate_descendants(self.token, position.to_vec2());
         cx.add_region(self.token, Rect::from_origin_size(position, self.size));
+        self.size
     }
 }
 

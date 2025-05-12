@@ -236,6 +236,12 @@ impl ContextWindow for Window {
 pub struct EventContext<'a> {
     context: &'a Context<'a>,
     redraw_requested: &'a mut bool,
+    // Used when a drag just crossed the min threshold to report as a drag so that the dragger can
+    // get a delta value that includes the threshold distance for the first mouse delta.
+    //
+    // Note: this presents some slight weirdness because mouse_delta will be larger than the actual
+    // computed delta but so be it.
+    pub(crate) delta_correction: Option<Vec2>,
     pub(crate) transform: Affine,
 }
 
@@ -252,6 +258,7 @@ impl<'a> EventContext<'a> {
         EventContext {
             context,
             redraw_requested,
+            delta_correction: None,
             transform: Affine::IDENTITY,
         }
     }
@@ -269,7 +276,11 @@ impl<'a> EventContext<'a> {
     }
 
     pub fn mouse_delta(&self) -> Vec2 {
-        self.mouse_position() - self.previous_mouse_position()
+        if let Some(delta) = self.delta_correction {
+            delta
+        } else {
+            self.mouse_position() - self.previous_mouse_position()
+        }
     }
 
     pub fn window_bounding_box(&self) -> Rect {

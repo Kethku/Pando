@@ -1,26 +1,19 @@
-use std::{cell::RefCell, rc::Rc};
-
 use aspen::prelude::*;
 
 use crate::util::*;
 
 pub struct Todo {
     editor: ElementPointer<TextEditor>,
-
-    state: Rc<RefCell<TodoState>>,
-}
-
-struct TodoState {
-    center: Point,
 }
 
 impl Todo {
-    pub fn new(center: Point) -> ElementPointer<Self> {
-        ElementPointer::new(Self {
-            editor: TextEditor::new(Brush::Solid(*FOREGROUND)),
-
-            state: Rc::new(RefCell::new(TodoState { center })),
-        })
+    pub fn new(center: Point) -> ElementPointer<PinWrapper<Self>> {
+        PinWrapper::new(
+            center,
+            ElementPointer::new(Self {
+                editor: TextEditor::new(Brush::Solid(*FOREGROUND)),
+            }),
+        )
     }
 }
 
@@ -37,15 +30,6 @@ impl Element for Todo {
 
     fn draw(&self, cx: &mut DrawContext) {
         let region = cx.region().inflate(2., 2.).to_rounded_rect(5.);
-
-        cx.mouse_region(region).on_drag({
-            let state = self.state.clone();
-            move |_down, cx| {
-                let mut state = state.borrow_mut();
-                state.center += cx.mouse_delta();
-                cx.request_redraw();
-            }
-        });
         cx.set_fill_brush(Brush::Solid(Color::new([0., 0., 0., 0.6])));
         cx.blurred(region + Vec2::new(0., 2.5), 10.);
         cx.set_fill_brush(Brush::Solid(*BACKGROUND1));
@@ -54,11 +38,5 @@ impl Element for Todo {
         cx.stroked_fill(&region);
 
         self.editor.draw(cx);
-    }
-}
-
-impl Pinnable for Todo {
-    fn center(&self) -> Point {
-        self.state.borrow().center
     }
 }

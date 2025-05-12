@@ -1,4 +1,8 @@
-use std::{cell::RefCell, collections::HashSet, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashSet,
+    rc::Rc,
+};
 
 use ordered_float::OrderedFloat;
 use vello::{
@@ -90,8 +94,8 @@ impl<Child: Pinnable> Board<Child> {
         Self::new(transform, draw_background)
     }
 
-    pub fn add_child(&mut self, child: ElementPointer<Child>) {
-        self.children.push(child);
+    pub fn add_child(&mut self, child: impl Into<ElementPointer<Child>>) {
+        self.children.push(child.into());
     }
 
     pub fn transform(&self) -> Affine {
@@ -120,7 +124,7 @@ impl<Child: Pinnable> Element for Board<Child> {
         cx.mouse_region(cx.region())
             .on_drag({
                 let transform = self.transform.clone();
-                move |_down, cx| {
+                move |cx| {
                     let mut transform = transform.borrow_mut();
                     *transform = transform.then_translate(cx.mouse_delta());
                     cx.request_redraw();
@@ -155,5 +159,49 @@ impl<Child: Pinnable> Element for Board<Child> {
         }
 
         cx.pop_layer();
+    }
+}
+
+pub struct PinWrapper<Child: Element> {
+    child: ElementPointer<Child>,
+
+    center: Rc<RefCell<Point>>,
+}
+
+impl<Child: Element> PinWrapper<Child> {
+    pub fn new(center: Point, child: ElementPointer<Child>) -> ElementPointer<Self> {
+        ElementPointer::new(Self {
+            child,
+            center: Rc::new(RefCell::new(center)),
+        })
+    }
+}
+
+impl<Child: Element> Element for PinWrapper<Child> {
+    fn update(&mut self, cx: &mut UpdateContext) {
+        self.child.update(cx)
+    }
+
+    fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size {
+        self.child.layout(min, max, cx).position(Point::ZERO, cx)
+    }
+
+    fn draw(&self, cx: &mut DrawContext) {
+        self.child.draw(cx);
+
+        cx.mouse_region(cx.region()).on_drag({
+            let center = self.center.clone();
+            move |cx| {
+                let mut center = center.borrow_mut();
+                *center += cx.mouse_delta();
+                cx.request_redraw();
+            }
+        });
+    }
+}
+
+impl<Child: Element> Pinnable for PinWrapper<Child> {
+    fn center(&self) -> Point {
+        *self.center.borrow()
     }
 }
