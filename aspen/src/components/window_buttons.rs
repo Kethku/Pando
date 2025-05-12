@@ -13,6 +13,7 @@ use super::button::Button;
 
 const TITLEBAR_HEIGHT: f64 = 34.;
 const BUTTON_ASPECT_RATIO: f64 = 1.666;
+const ICON_SHIFT: Vec2 = Vec2::new(0., -1.);
 const X_HEIGHT: f64 = 10.;
 
 pub struct WindowButtons {
@@ -58,59 +59,54 @@ impl WindowButtons {
         })
     }
 
+    fn icon_rect(rect: Rect) -> Rect {
+        Rect::from_origin_size(
+            (rect.center() - Vec2::new(X_HEIGHT / 2., X_HEIGHT / 2.)).snap(),
+            Size::new(X_HEIGHT, X_HEIGHT),
+        ) + ICON_SHIFT
+    }
+
     fn draw_close_icon(rect: Rect, foreground: Color, cx: &mut DrawContext) {
+        let icon_rect = Self::icon_rect(rect);
+        let corners = icon_rect.corners();
+
         cx.set_stroke_style(Stroke::new(1.));
         cx.set_stroke_brush(Brush::Solid(foreground));
 
-        cx.stroke(&Line::new(
-            (rect.center() - Vec2::new(X_HEIGHT / 2., X_HEIGHT / 2.)).snap(),
-            (rect.center() + Vec2::new(X_HEIGHT / 2., X_HEIGHT / 2.)).snap(),
-        ));
-        cx.stroke(&Line::new(
-            (rect.center() + Vec2::new(-X_HEIGHT / 2., X_HEIGHT / 2.)).snap(),
-            (rect.center() + Vec2::new(X_HEIGHT / 2., -X_HEIGHT / 2.)).snap(),
-        ));
+        cx.stroke(&Line::new(corners[0], corners[2]));
+        cx.stroke(&Line::new(corners[1], corners[3]));
     }
 
     fn draw_maximize_icon(rect: Rect, foreground: Color, cx: &mut DrawContext) {
-        const RESTORE_OFFSET: f64 = 3.;
-        let icon_rect = Rect::from_origin_size(
-            rect.center() - Vec2::new(X_HEIGHT / 2., X_HEIGHT / 2.),
-            Size::new(X_HEIGHT, X_HEIGHT),
-        );
-        let icon_corners = icon_rect.corners();
+        const RESTORE_OFFSET: f64 = 2.;
+        let icon_rect = Self::icon_rect(rect);
+        let corners = icon_rect.corners();
         cx.set_stroke_style(Stroke::new(1.));
         cx.set_stroke_brush(Brush::Solid(foreground));
 
         if cx.is_maximized() {
             let mut path = BezPath::new();
-            path.move_to((icon_corners[0] + Vec2::new(RESTORE_OFFSET, 0.)).snap());
-            path.line_to(icon_corners[1].snap());
-            path.line_to((icon_corners[2] + Vec2::new(0., -RESTORE_OFFSET)).snap());
+            path.move_to(corners[0] + Vec2::new(RESTORE_OFFSET, 0.));
+            path.line_to(corners[1]);
+            path.line_to(corners[2] + Vec2::new(0., -RESTORE_OFFSET));
             cx.stroke(&path);
             cx.stroke(&Rect::from_points(
-                (icon_corners[1] + Vec2::new(-RESTORE_OFFSET, RESTORE_OFFSET)).snap(),
-                icon_corners[3].snap(),
+                corners[1] + Vec2::new(-RESTORE_OFFSET, RESTORE_OFFSET),
+                corners[3],
             ));
         } else {
-            cx.stroke(&Rect::from_points(
-                icon_corners[0].snap(),
-                icon_corners[2].snap(),
-            ));
+            cx.stroke(&Rect::from_points(corners[0], corners[2]));
         }
     }
 
     fn draw_minimize_icon(rect: Rect, foreground: Color, cx: &mut DrawContext) {
-        let icon_rect = Rect::from_origin_size(
-            rect.center() - Vec2::new(X_HEIGHT / 2., X_HEIGHT / 2.),
-            Size::new(X_HEIGHT, X_HEIGHT),
-        );
+        let icon_rect = Self::icon_rect(rect);
         cx.set_stroke_style(Stroke::new(1.));
         cx.set_stroke_brush(Brush::Solid(foreground));
 
         cx.stroke(&Line::new(
-            (icon_rect.center() + Vec2::new(-icon_rect.width() / 2., 0.)).snap(),
-            (icon_rect.center() + Vec2::new(icon_rect.width() / 2., 0.)).snap(),
+            icon_rect.center_left(),
+            icon_rect.center_right(),
         ));
     }
 }

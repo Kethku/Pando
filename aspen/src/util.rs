@@ -68,6 +68,11 @@ impl Mixable for Rect {
 
 pub trait RectExt {
     fn corners(&self) -> [Point; 4];
+
+    fn center_left(&self) -> Point;
+    fn center_right(&self) -> Point;
+    fn center_top(&self) -> Point;
+    fn center_bottom(&self) -> Point;
 }
 
 impl RectExt for Rect {
@@ -78,6 +83,22 @@ impl RectExt for Rect {
             Point::new(self.x1, self.y1),
             Point::new(self.x0, self.y1),
         ]
+    }
+
+    fn center_left(&self) -> Point {
+        Point::new(self.x0, self.y0 + self.height() / 2.)
+    }
+
+    fn center_right(&self) -> Point {
+        Point::new(self.x1, self.y0 + self.height() / 2.)
+    }
+
+    fn center_top(&self) -> Point {
+        Point::new(self.x0 + self.width() / 2., self.y0)
+    }
+
+    fn center_bottom(&self) -> Point {
+        Point::new(self.x0 + self.width() / 2., self.y1)
     }
 }
 
