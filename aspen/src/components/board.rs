@@ -49,10 +49,10 @@ impl<Child: Pinnable> Board<Child> {
             let mut filled_spaces = HashSet::new();
             loop {
                 spacing = spacing / 2.;
-                let mut radius = spacing / 50.;
+                let mut radius = spacing / 75.;
                 let scale = cx.current_transform().unskewed_scale().length() / 2.0f64.sqrt();
                 let actual_radius = scale * radius;
-                if actual_radius < 0.25 {
+                if actual_radius < 0.75 {
                     break;
                 } else if actual_radius > 4. {
                     continue;
@@ -65,7 +65,7 @@ impl<Child: Pinnable> Board<Child> {
                     let mut y = bounds.min_y() - bounds.min_y().rem_euclid(spacing);
                     loop {
                         cx.set_fill_brush(Brush::Solid(
-                            background.mix(&dots, (actual_radius - 0.5) * 4.),
+                            background.mix(&dots, (actual_radius - 0.75) * 4.),
                         ));
 
                         let point = (OrderedFloat(x), OrderedFloat(y));

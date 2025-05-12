@@ -14,11 +14,15 @@ pub struct MouseRegion {
     transform: Affine,
     icon: Option<CursorIcon>,
     on_drag: Option<Box<dyn Fn(Point, &mut EventContext)>>,
+    on_right_drag: Option<Box<dyn Fn(Point, &mut EventContext)>>,
     on_hover: Option<Box<dyn Fn(&mut EventContext)>>,
     on_leave: Option<Box<dyn Fn(&mut EventContext)>>,
     on_down: Option<Box<dyn Fn(&mut EventContext)>>,
+    on_right_down: Option<Box<dyn Fn(&mut EventContext)>>,
     on_up: Option<Box<dyn Fn(&mut EventContext)>>,
+    on_right_up: Option<Box<dyn Fn(&mut EventContext)>>,
     on_click: Option<Box<dyn Fn(&mut EventContext)>>,
+    on_right_click: Option<Box<dyn Fn(&mut EventContext)>>,
     on_scroll: Option<Box<dyn Fn(&mut EventContext)>>,
 }
 
@@ -29,12 +33,16 @@ impl MouseRegion {
             token,
             transform,
             icon: None,
+            on_drag: None,
+            on_right_drag: None,
             on_hover: None,
             on_leave: None,
             on_down: None,
-            on_drag: None,
+            on_right_down: None,
             on_up: None,
+            on_right_up: None,
             on_click: None,
+            on_right_click: None,
             on_scroll: None,
         }
     }
