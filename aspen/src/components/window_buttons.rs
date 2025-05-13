@@ -39,35 +39,35 @@ impl WindowButtons {
                 button_size,
                 Color::new([0., 0., 0., 0.]),
                 close_hover,
-                move |rect, cx| Self::draw_close_icon(rect, foreground, cx),
+                move |cx| Self::draw_close_icon(foreground, cx),
                 |cx| cx.close(),
             ),
             maximize: Button::new(
                 button_size,
                 Color::new([0., 0., 0., 0.]),
                 other_hover,
-                move |rect, cx| Self::draw_maximize_icon(rect, foreground, cx),
+                move |cx| Self::draw_maximize_icon(foreground, cx),
                 |cx| cx.toggle_maximized(),
             ),
             minimize: Button::new(
                 button_size,
                 Color::new([0., 0., 0., 0.]),
                 other_hover,
-                move |rect, cx| Self::draw_minimize_icon(rect, foreground, cx),
+                move |cx| Self::draw_minimize_icon(foreground, cx),
                 |cx| cx.minimize(),
             ),
         })
     }
 
-    fn icon_rect(rect: Rect) -> Rect {
+    fn icon_rect(cx: &mut DrawContext) -> Rect {
         Rect::from_origin_size(
-            (rect.center() - Vec2::new(X_HEIGHT / 2., X_HEIGHT / 2.)).snap(),
+            (cx.region().center() - Vec2::new(X_HEIGHT / 2., X_HEIGHT / 2.)).snap(),
             Size::new(X_HEIGHT, X_HEIGHT),
         ) + ICON_SHIFT
     }
 
-    fn draw_close_icon(rect: Rect, foreground: Color, cx: &mut DrawContext) {
-        let icon_rect = Self::icon_rect(rect);
+    fn draw_close_icon(foreground: Color, cx: &mut DrawContext) {
+        let icon_rect = Self::icon_rect(cx);
         let corners = icon_rect.corners();
 
         cx.set_stroke_style(Stroke::new(1.));
@@ -77,9 +77,9 @@ impl WindowButtons {
         cx.stroke(&Line::new(corners[1], corners[3]));
     }
 
-    fn draw_maximize_icon(rect: Rect, foreground: Color, cx: &mut DrawContext) {
+    fn draw_maximize_icon(foreground: Color, cx: &mut DrawContext) {
         const RESTORE_OFFSET: f64 = 2.;
-        let icon_rect = Self::icon_rect(rect);
+        let icon_rect = Self::icon_rect(cx);
         let corners = icon_rect.corners();
         cx.set_stroke_style(Stroke::new(1.));
         cx.set_stroke_brush(Brush::Solid(foreground));
@@ -99,8 +99,8 @@ impl WindowButtons {
         }
     }
 
-    fn draw_minimize_icon(rect: Rect, foreground: Color, cx: &mut DrawContext) {
-        let icon_rect = Self::icon_rect(rect);
+    fn draw_minimize_icon(foreground: Color, cx: &mut DrawContext) {
+        let icon_rect = Self::icon_rect(cx);
         cx.set_stroke_style(Stroke::new(1.));
         cx.set_stroke_brush(Brush::Solid(foreground));
 

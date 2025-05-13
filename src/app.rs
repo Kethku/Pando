@@ -76,7 +76,7 @@ impl App {
                 Size::new(100., 100.),
                 *BACKGROUND1,
                 *BACKGROUND2,
-                |_rect, _cx| {},
+                |_cx| {},
                 {
                     let board = board.clone();
                     move |cx| {

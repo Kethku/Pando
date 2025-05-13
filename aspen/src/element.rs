@@ -30,13 +30,13 @@ impl<E: Element> ElementPointer<E> {
         self.token
     }
 
-    pub fn update(&mut self, cx: &mut UpdateContext) {
+    pub fn update<'a>(&mut self, cx: &mut UpdateContext) {
         let mut child_cx: UpdateContext = cx.child(self.token);
         self.element.update(&mut child_cx);
     }
 
     #[must_use]
-    pub fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> LayoutResult {
+    pub fn layout<'a>(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> LayoutResult {
         let mut child_cx = cx.child(self.token);
         let size = self.element.layout(min, max, &mut child_cx).clamp(min, max);
         LayoutResult {
@@ -45,7 +45,7 @@ impl<E: Element> ElementPointer<E> {
         }
     }
 
-    pub fn draw(&self, cx: &mut DrawContext) {
+    pub fn draw<'a>(&self, cx: &mut DrawContext) {
         let mut child_cx = cx.child(self.token);
         self.element.draw(&mut child_cx);
     }

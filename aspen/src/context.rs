@@ -1,15 +1,18 @@
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet},
-    ops::Deref,
+    ops::{Deref, DerefMut},
     sync::Arc,
 };
 
 use mockall::*;
-use parley::{layout::PositionedLayoutItem, Layout};
+use parley::{
+    Layout, RangedBuilder, fontique::Collection, layout::PositionedLayoutItem, style::StyleProperty,
+};
 use vello::{
+    Scene,
     kurbo::{Affine, Line, Point, Rect, RoundedRect, Shape, Size, Stroke, Vec2},
     peniko::{BlendMode, Brush, Color, Fill},
-    Scene,
 };
 use winit::{
     event_loop::ActiveEventLoop,
@@ -19,6 +22,7 @@ use winit::{
 use crate::{
     element::{Element, ElementPointer},
     mouse_region::{MouseRegion, MouseRegionManager},
+    shaper::Shaper,
     token::Token,
 };
 
@@ -98,6 +102,8 @@ pub struct Context<'a> {
     event_state: &'a EventState,
     event_loop: &'a dyn ContextEventLoop,
     window: Arc<dyn ContextWindow>,
+    shaper: &'a RefCell<Shaper>,
+    default_text_styles: Vec<StyleProperty<'static, Brush>>,
     element_token: Token,
 }
 
@@ -114,12 +120,15 @@ impl<'a> Context<'a> {
         event_state: &'a EventState,
         event_loop: &'a dyn ContextEventLoop,
         window: Arc<dyn ContextWindow>,
+        shaper: &'a RefCell<Shaper>,
         element_token: Token,
     ) -> Context<'a> {
         Context {
             event_state,
             event_loop,
             window,
+            shaper,
+            default_text_styles: Vec::new(),
             element_token,
         }
     }
@@ -158,6 +167,26 @@ impl<'a> Context<'a> {
         self.window.set_cursor(Cursor::Icon(icon));
     }
 
+    pub fn push_default_text_style(&mut self, style: StyleProperty<'static, Brush>) {
+        self.default_text_styles.push(style);
+    }
+
+    pub fn clear_default_text_styles(&mut self) {
+        self.default_text_styles.clear();
+    }
+
+    pub fn layout(&mut self, text: &str) -> Layout<Brush> {
+        self.shaper
+            .borrow_mut()
+            .layout(text, &self.default_text_styles)
+    }
+
+    pub fn layout_within(&mut self, text: &str, max_advance: f32) -> Layout<Brush> {
+        self.shaper
+            .borrow_mut()
+            .layout_within(text, max_advance, &self.default_text_styles)
+    }
+
     pub fn token(&self) -> Token {
         self.element_token
     }
@@ -170,6 +199,8 @@ impl<'a> Context<'a> {
             event_state: self.event_state,
             event_loop: self.event_loop,
             window: self.window.clone(),
+            shaper: self.shaper,
+            default_text_styles: self.default_text_styles.clone(),
             element_token,
         }
     }
@@ -352,6 +383,12 @@ impl<'a> Deref for LayoutContext<'a> {
     }
 }
 
+impl<'a> DerefMut for LayoutContext<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.context
+    }
+}
+
 impl<'a> LayoutContext<'a> {
     pub fn new(
         context: Context<'a>,
@@ -483,7 +520,7 @@ impl<'a> DrawContext<'a> {
         }
     }
 
-    pub fn draw_layout(&mut self, layout: &Layout<Brush>, position: Point) {
+    pub fn draw_layout_at(&mut self, layout: &Layout<Brush>, position: Point) {
         let transform = self.current_transform().pre_translate(position.to_vec2());
         for line in layout.lines() {
             for item in line.items() {

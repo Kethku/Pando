@@ -2,8 +2,8 @@ use futures::executor::block_on;
 use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use vello::{
-    kurbo::{Point, Size, Vec2},
     Scene,
+    kurbo::{Point, Size, Vec2},
 };
 use winit::{
     application::ApplicationHandler,
@@ -18,6 +18,7 @@ use crate::{
     context::{Context, DrawContext, EventState, LayoutContext, UpdateContext},
     element::{Element, ElementPointer},
     mouse_region::MouseRegionManager,
+    shaper::Shaper,
     token::Token,
     winit_renderer::WinitRenderer,
 };
@@ -27,6 +28,7 @@ struct WinitApplicationHandler<A: Element> {
     app: RefCell<ElementPointer<A>>,
     event_state: EventState,
     renderer: Option<WinitRenderer>,
+    shaper: RefCell<Shaper>,
 
     force_redraw: bool,
 }
@@ -38,6 +40,7 @@ impl<A: Element> WinitApplicationHandler<A> {
             app: RefCell::new(app.into()),
             event_state: EventState::new(),
             renderer: None,
+            shaper: RefCell::new(Shaper::new()),
 
             force_redraw: false,
         }
@@ -52,6 +55,7 @@ impl<A: Element> WinitApplicationHandler<A> {
             &self.event_state,
             event_loop,
             self.renderer.as_ref().unwrap().window.clone(),
+            &self.shaper,
             element_token,
         )
     }

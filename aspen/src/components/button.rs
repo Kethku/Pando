@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
 use vello::{
-    kurbo::{Rect, Size},
+    kurbo::Size,
     peniko::{Brush, Color},
 };
 
@@ -17,7 +17,7 @@ pub struct Button {
     size: Size,
     idle_background: Color,
     hover_background: Color,
-    draw_contents: Box<dyn Fn(Rect, &mut DrawContext)>,
+    draw_contents: Box<dyn Fn(&mut DrawContext)>,
 
     state: Rc<RefCell<ButtonState>>,
 }
@@ -30,7 +30,7 @@ struct ButtonState {
 }
 
 impl Button {
-    pub fn new<D: Fn(Rect, &mut DrawContext) + 'static, C: Fn(&mut EventContext) + 'static>(
+    pub fn new<D: Fn(&mut DrawContext) + 'static, C: Fn(&mut EventContext) + 'static>(
         size: Size,
         idle_background: Color,
         hover_background: Color,
@@ -114,6 +114,6 @@ impl Element for Button {
             cx.fill(&region);
         }
 
-        (self.draw_contents)(region, cx);
+        (self.draw_contents)(cx);
     }
 }

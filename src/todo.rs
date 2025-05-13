@@ -29,7 +29,7 @@ impl Element for Todo {
     }
 
     fn draw(&self, cx: &mut DrawContext) {
-        let region = cx.region().inflate(2., 2.).to_rounded_rect(5.);
+        let region = cx.region().to_rounded_rect(5.);
         cx.set_fill_brush(Brush::Solid(Color::new([0., 0., 0., 0.6])));
         cx.blurred(region + Vec2::new(0., 2.5), 10.);
         cx.set_fill_brush(Brush::Solid(*BACKGROUND1));
