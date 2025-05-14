@@ -29,7 +29,9 @@ pub struct EventState {
     pub previous_mouse_position: Point,
     pub window_size: Size,
     pub mouse_down: bool,
+    pub right_mouse_down: bool,
     pub was_mouse_down: bool,
+    pub was_right_mouse_down: bool,
     pub scroll_delta: Vec2,
 }
 
@@ -40,13 +42,16 @@ impl EventState {
             previous_mouse_position: Point::new(0., 0.),
             window_size: Size::new(0., 0.),
             mouse_down: false,
+            right_mouse_down: false,
             was_mouse_down: false,
+            was_right_mouse_down: false,
             scroll_delta: Vec2::new(0., 0.),
         }
     }
 
     pub fn next_frame(&mut self) {
         self.was_mouse_down = self.mouse_down;
+        self.was_right_mouse_down = self.right_mouse_down;
         self.previous_mouse_position = self.mouse_position;
         self.scroll_delta = Vec2::new(0., 0.);
     }
@@ -55,20 +60,40 @@ impl EventState {
         self.mouse_down
     }
 
+    pub fn right_mouse_down(&self) -> bool {
+        self.right_mouse_down
+    }
+
     pub fn was_mouse_down(&self) -> bool {
         self.was_mouse_down
+    }
+
+    pub fn was_right_mouse_down(&self) -> bool {
+        self.was_right_mouse_down
     }
 
     pub fn mouse_released(&self) -> bool {
         !self.mouse_down && self.was_mouse_down
     }
 
+    pub fn right_mouse_released(&self) -> bool {
+        !self.right_mouse_down && self.was_right_mouse_down
+    }
+
     pub fn mouse_just_down(&self) -> bool {
         self.mouse_down && !self.was_mouse_down
     }
 
+    pub fn right_mouse_just_down(&self) -> bool {
+        self.right_mouse_down && !self.was_right_mouse_down
+    }
+
     pub fn mouse_held(&self) -> bool {
         self.mouse_down && self.was_mouse_down
+    }
+
+    pub fn right_mouse_held(&self) -> bool {
+        self.right_mouse_down && self.was_right_mouse_down
     }
 
     pub fn actual_mouse_position(&self) -> Point {

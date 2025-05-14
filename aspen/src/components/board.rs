@@ -123,7 +123,7 @@ impl<Child: Pinnable> Element for Board<Child> {
 
     fn draw(&self, cx: &mut DrawContext) {
         cx.mouse_region(cx.region())
-            .on_drag({
+            .on_right_drag({
                 let transform = self.transform.clone();
                 move |cx| {
                     let mut transform = transform.borrow_mut();

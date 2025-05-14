@@ -2,8 +2,8 @@ use futures::executor::block_on;
 use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use vello::{
-    Scene,
     kurbo::{Point, Size, Vec2},
+    Scene,
 };
 use winit::{
     application::ApplicationHandler,
@@ -134,6 +134,14 @@ impl<A: Element> ApplicationHandler for WinitApplicationHandler<A> {
                 ..
             } => {
                 self.event_state.mouse_down = state == ElementState::Pressed;
+                self.renderer.as_ref().unwrap().window.request_redraw();
+            }
+            WindowEvent::MouseInput {
+                state,
+                button: MouseButton::Right,
+                ..
+            } => {
+                self.event_state.right_mouse_down = state == ElementState::Pressed;
                 self.renderer.as_ref().unwrap().window.request_redraw();
             }
             WindowEvent::MouseWheel { delta, .. } => {

@@ -65,6 +65,16 @@ impl MouseRegion {
         self
     }
 
+    pub fn on_drag<F: Fn(&mut EventContext) + 'static>(&mut self, f: F) -> &mut Self {
+        self.on_drag = Some(Box::new(f));
+        self
+    }
+
+    pub fn on_right_drag<F: Fn(&mut EventContext) + 'static>(&mut self, f: F) -> &mut Self {
+        self.on_right_drag = Some(Box::new(f));
+        self
+    }
+
     pub fn on_hover<F: Fn(&mut EventContext) + 'static>(&mut self, f: F) -> &mut Self {
         self.on_hover = Some(Box::new(f));
         self
@@ -80,8 +90,8 @@ impl MouseRegion {
         self
     }
 
-    pub fn on_drag<F: Fn(&mut EventContext) + 'static>(&mut self, f: F) -> &mut Self {
-        self.on_drag = Some(Box::new(f));
+    pub fn on_right_down<F: Fn(&mut EventContext) + 'static>(&mut self, f: F) -> &mut Self {
+        self.on_right_down = Some(Box::new(f));
         self
     }
 
@@ -90,8 +100,18 @@ impl MouseRegion {
         self
     }
 
+    pub fn on_right_up<F: Fn(&mut EventContext) + 'static>(&mut self, f: F) -> &mut Self {
+        self.on_up = Some(Box::new(f));
+        self
+    }
+
     pub fn on_click<F: Fn(&mut EventContext) + 'static>(&mut self, f: F) -> &mut Self {
         self.on_click = Some(Box::new(f));
+        self
+    }
+
+    pub fn on_right_click<F: Fn(&mut EventContext) + 'static>(&mut self, f: F) -> &mut Self {
+        self.on_up = Some(Box::new(f));
         self
     }
 
@@ -103,9 +123,13 @@ impl MouseRegion {
 
 pub struct MouseRegionManager {
     down: Option<Point>,
+    right_down: Option<Point>,
     drag_min_reached: bool,
+    right_drag_min_reached: bool,
     current_dragger: Option<Token>,
+    current_right_dragger: Option<Token>,
     current_clicker: Option<Token>,
+    current_right_clicker: Option<Token>,
     regions: Vec<MouseRegion>,
     hovered_regions: HashSet<Token>,
 }
@@ -114,9 +138,13 @@ impl MouseRegionManager {
     pub fn new() -> Self {
         MouseRegionManager {
             down: None,
+            right_down: None,
             drag_min_reached: false,
+            right_drag_min_reached: false,
             current_dragger: None,
+            current_right_dragger: None,
             current_clicker: None,
+            current_right_clicker: None,
             regions: Vec::new(),
             hovered_regions: HashSet::new(),
         }
@@ -139,6 +167,11 @@ impl MouseRegionManager {
             self.drag_min_reached = false;
         }
 
+        if cx.right_mouse_just_down() {
+            self.right_down = Some(cx.actual_mouse_position());
+            self.right_drag_min_reached = false;
+        }
+
         let down = self.down;
         let mut drag_min_just_reached = false;
         if let Some(down) = down {
@@ -151,12 +184,32 @@ impl MouseRegionManager {
             }
         }
 
+        let right_down = self.right_down;
+        let mut right_drag_min_just_reached = false;
+        if let Some(right_down) = right_down {
+            if (cx.actual_mouse_position() - right_down).length() > MIN_DRAG {
+                if !self.right_drag_min_reached {
+                    right_drag_min_just_reached = true;
+                }
+                self.right_drag_min_reached = true;
+                self.current_right_clicker = None;
+            }
+        }
+
         let current_dragger = self.current_dragger;
         let current_clicker = self.current_clicker;
         if !cx.mouse_down() {
             self.down = None;
             self.current_dragger = None;
             self.current_clicker = None;
+        }
+
+        let current_right_dragger = self.current_right_dragger;
+        let current_right_clicker = self.current_clicker;
+        if !cx.right_mouse_down() {
+            self.right_down = None;
+            self.current_right_dragger = None;
+            self.current_right_clicker = None;
         }
 
         let mut redraw_requested = false;
@@ -172,7 +225,8 @@ impl MouseRegionManager {
             }
         }
 
-        // Left mouse button handling
+        let mut left_consumed = false;
+        let mut right_consumed = false;
         for region in self.regions.iter().rev() {
             let mut clipped = false;
             for clip in region.clip_stack.iter() {
@@ -181,14 +235,15 @@ impl MouseRegionManager {
                 }
             }
 
-            let mut consume = false;
-
             if let Some(down) = down {
                 if (cx.actual_mouse_position() - down).length() > MIN_DRAG {
                     self.drag_min_reached = true;
                 }
 
-                if current_dragger == Some(region.token) && cx.mouse_down() && self.drag_min_reached
+                if current_dragger == Some(region.token)
+                    && cx.mouse_down()
+                    && self.drag_min_reached
+                    && !left_consumed
                 {
                     if let Some(on_drag) = &region.on_drag {
                         cx.transform = region.transform;
@@ -198,7 +253,30 @@ impl MouseRegionManager {
                         }
                         on_drag(&mut cx);
                         cx.delta_correction = None;
-                        consume = true;
+                        left_consumed = true;
+                    }
+                }
+            }
+
+            if let Some(right_down) = right_down {
+                if (cx.actual_mouse_position() - right_down).length() > MIN_DRAG {
+                    self.drag_min_reached = true;
+                }
+
+                if current_right_dragger == Some(region.token)
+                    && cx.right_mouse_down()
+                    && self.right_drag_min_reached
+                    && !right_consumed
+                {
+                    if let Some(on_right_drag) = &region.on_right_drag {
+                        cx.transform = region.transform;
+                        let right_down = cx.transform.inverse() * right_down;
+                        if right_drag_min_just_reached {
+                            cx.delta_correction = Some(cx.mouse_position() - right_down);
+                        }
+                        on_right_drag(&mut cx);
+                        cx.delta_correction = None;
+                        right_consumed = true;
                     }
                 }
             }
@@ -214,7 +292,7 @@ impl MouseRegionManager {
 
                 self.hovered_regions.insert(region.token);
 
-                if !cx.mouse_down() {
+                if !cx.mouse_down() && !cx.right_mouse_down() {
                     if let Some(on_hover) = &region.on_hover {
                         cx.transform = region.transform;
                         on_hover(&mut cx);
@@ -222,10 +300,12 @@ impl MouseRegionManager {
                     }
                 }
 
-                if cx.mouse_just_down() {
+                if cx.mouse_just_down() && !left_consumed {
                     if let Some(on_down) = &region.on_down {
                         cx.transform = region.transform;
                         on_down(&mut cx);
+
+                        left_consumed = true;
                     }
 
                     if self.current_dragger.is_none() && region.on_drag.is_some() {
@@ -237,7 +317,24 @@ impl MouseRegionManager {
                     }
                 }
 
-                if cx.mouse_released() {
+                if cx.right_mouse_just_down() && !right_consumed {
+                    if let Some(on_right_down) = &region.on_right_down {
+                        cx.transform = region.transform;
+                        on_right_down(&mut cx);
+
+                        right_consumed = true;
+                    }
+
+                    if self.current_right_dragger.is_none() && region.on_right_drag.is_some() {
+                        self.current_right_dragger = Some(region.token);
+                    }
+
+                    if self.current_right_clicker.is_none() && region.on_right_click.is_some() {
+                        self.current_right_clicker = Some(region.token);
+                    }
+                }
+
+                if cx.mouse_released() && !left_consumed {
                     if let Some(on_up) = &region.on_up {
                         cx.transform = region.transform;
                         on_up(&mut cx);
@@ -248,14 +345,31 @@ impl MouseRegionManager {
                             if current_clicker == Some(region.token) {
                                 cx.transform = region.transform;
                                 on_click(&mut cx);
-                                consume = true;
+                                left_consumed = true;
+                            }
+                        }
+                    }
+                }
+
+                if cx.right_mouse_released() && !right_consumed {
+                    if let Some(on_right_up) = &region.on_right_up {
+                        cx.transform = region.transform;
+                        on_right_up(&mut cx);
+                    }
+
+                    if let Some(on_right_click) = &region.on_right_click {
+                        if !self.right_drag_min_reached {
+                            if current_right_clicker == Some(region.token) {
+                                cx.transform = region.transform;
+                                on_right_click(&mut cx);
+                                right_consumed = true;
                             }
                         }
                     }
                 }
             }
 
-            if consume {
+            if left_consumed && right_consumed {
                 break;
             }
         }
