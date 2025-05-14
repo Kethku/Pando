@@ -167,6 +167,8 @@ impl MouseRegionManager {
 
         // Left mouse button handling
         for region in self.regions.iter().rev() {
+            let mut consume = false;
+
             if let Some(down) = down {
                 if (cx.actual_mouse_position() - down).length() > MIN_DRAG {
                     self.drag_min_reached = true;
@@ -182,6 +184,7 @@ impl MouseRegionManager {
                         }
                         on_drag(&mut cx);
                         cx.delta_correction = None;
+                        consume = true;
                     }
                 }
             }
@@ -196,8 +199,6 @@ impl MouseRegionManager {
                 }
 
                 self.hovered_regions.insert(region.token);
-
-                let mut consume = false;
 
                 if !cx.mouse_down() {
                     if let Some(on_hover) = &region.on_hover {
@@ -238,10 +239,10 @@ impl MouseRegionManager {
                         }
                     }
                 }
+            }
 
-                if consume {
-                    break;
-                }
+            if consume {
+                break;
             }
         }
 

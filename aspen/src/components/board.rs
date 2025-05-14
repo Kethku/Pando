@@ -90,6 +90,11 @@ impl<Child: Pinnable> Board<Child> {
         Self::new(transform, draw_background)
     }
 
+    pub fn update_transform(&mut self, update: impl FnOnce(Affine) -> Affine) {
+        let transform = *self.transform.borrow();
+        *self.transform.borrow_mut() = update(transform);
+    }
+
     pub fn add_child(&mut self, child: impl Into<ElementPointer<Child>>) {
         self.children.push(child.into());
     }
@@ -161,6 +166,7 @@ impl<Child: Pinnable> Element for Board<Child> {
 pub struct PinWrapper<Child: Element> {
     child: ElementPointer<Child>,
 
+    size: Option<Size>,
     center: Rc<RefCell<Point>>,
 }
 
@@ -168,6 +174,19 @@ impl<Child: Element> PinWrapper<Child> {
     pub fn new(center: Point, child: ElementPointer<Child>) -> ElementPointer<Self> {
         ElementPointer::new(Self {
             child,
+            size: None,
+            center: Rc::new(RefCell::new(center)),
+        })
+    }
+
+    pub fn new_sized(
+        center: Point,
+        size: Size,
+        child: ElementPointer<Child>,
+    ) -> ElementPointer<Self> {
+        ElementPointer::new(Self {
+            child,
+            size: Some(size),
             center: Rc::new(RefCell::new(center)),
         })
     }
@@ -179,12 +198,14 @@ impl<Child: Element> Element for PinWrapper<Child> {
     }
 
     fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size {
-        self.child.layout(min, max, cx).position(Point::ZERO, cx)
+        if let Some(size) = self.size {
+            self.child.layout(size, size, cx).position(Point::ZERO, cx)
+        } else {
+            self.child.layout(min, max, cx).position(Point::ZERO, cx)
+        }
     }
 
     fn draw(&self, cx: &mut DrawContext) {
-        self.child.draw(cx);
-
         cx.mouse_region(cx.region()).on_drag({
             let center = self.center.clone();
             move |cx| {
@@ -193,6 +214,8 @@ impl<Child: Element> Element for PinWrapper<Child> {
                 cx.request_redraw();
             }
         });
+
+        self.child.draw(cx);
     }
 }
 

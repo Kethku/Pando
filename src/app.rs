@@ -14,6 +14,7 @@ pub struct App {
 pub enum AppPin {
     Todo(ElementPointer<PinWrapper<Todo>>),
     Button(ElementPointer<PinWrapper<Button>>),
+    Board(ElementPointer<PinWrapper<Board<PinWrapper<Todo>>>>),
 }
 
 impl From<ElementPointer<PinWrapper<Todo>>> for AppPin {
@@ -28,11 +29,18 @@ impl From<ElementPointer<PinWrapper<Button>>> for AppPin {
     }
 }
 
+impl From<ElementPointer<PinWrapper<Board<PinWrapper<Todo>>>>> for AppPin {
+    fn from(value: ElementPointer<PinWrapper<Board<PinWrapper<Todo>>>>) -> Self {
+        AppPin::Board(value)
+    }
+}
+
 impl Element for AppPin {
     fn update(&mut self, cx: &mut UpdateContext) {
         match self {
             AppPin::Todo(todo) => todo.update(cx),
             AppPin::Button(button) => button.update(cx),
+            AppPin::Board(board) => board.update(cx),
         }
     }
 
@@ -40,6 +48,7 @@ impl Element for AppPin {
         match self {
             AppPin::Todo(todo) => todo.layout(min, max, cx).position(Point::ZERO, cx),
             AppPin::Button(button) => button.layout(min, max, cx).position(Point::ZERO, cx),
+            AppPin::Board(board) => board.layout(min, max, cx).position(Point::ZERO, cx),
         }
     }
 
@@ -47,6 +56,7 @@ impl Element for AppPin {
         match self {
             AppPin::Todo(todo) => todo.draw(cx),
             AppPin::Button(button) => button.draw(cx),
+            AppPin::Board(board) => board.draw(cx),
         }
     }
 }
@@ -56,6 +66,7 @@ impl Pinnable for AppPin {
         match self {
             AppPin::Todo(todo) => todo.center(),
             AppPin::Button(button) => button.center(),
+            AppPin::Board(board) => board.center(),
         }
     }
 }
@@ -81,12 +92,27 @@ impl App {
                     let board = board.clone();
                     move |cx| {
                         let mut board = board.borrow_mut();
-                        board.add_child(AppPin::from(Todo::new(Point::new(300., 300.))));
+                        board.update_transform(|transform| {
+                            let about = transform * cx.mouse_position();
+                            transform.pre_rotate_about(0.1, about)
+                        });
                         cx.request_redraw();
                     }
                 },
             ),
         )));
+        board
+            .borrow_mut()
+            .add_child(AppPin::from(PinWrapper::new_sized(
+                Point::new(500., 500.),
+                Size::new(300., 300.),
+                {
+                    let mut board =
+                        Board::new_dotgrid(Affine::IDENTITY, *BACKGROUND1, *BACKGROUND4);
+                    board.add_child(Todo::new(Point::new(100., 100.)));
+                    board
+                },
+            )));
 
         App {
             window_buttons: WindowButtons::new(*BACKGROUND3, *CLOSE, *BACKGROUND4, *FOREGROUND),
