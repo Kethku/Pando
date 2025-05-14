@@ -6,11 +6,11 @@ use std::{
 };
 
 use mockall::*;
-use parley::{Layout, layout::PositionedLayoutItem, style::StyleProperty};
+use parley::{layout::PositionedLayoutItem, style::StyleProperty, Layout};
 use vello::{
-    Scene,
     kurbo::{Affine, BezPath, Line, Point, Rect, RoundedRect, Shape, Size, Stroke, Vec2},
     peniko::{BlendMode, Brush, Color, Fill},
+    Scene,
 };
 use winit::{
     event_loop::ActiveEventLoop,
@@ -629,7 +629,7 @@ impl<'a> DrawContext<'a> {
         self.transform_stack.push(transform);
         self.scene
             .push_layer(BlendMode::default(), alpha, transform, clip);
-        self.clip_stack.push(dbg!(transform * clip.to_path(0.1)));
+        self.clip_stack.push(transform * clip.to_path(0.1));
     }
 
     pub fn pop_layer(&mut self) {

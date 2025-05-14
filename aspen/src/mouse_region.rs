@@ -174,9 +174,10 @@ impl MouseRegionManager {
 
         // Left mouse button handling
         for region in self.regions.iter().rev() {
+            let mut clipped = false;
             for clip in region.clip_stack.iter() {
                 if !clip.contains(cx.actual_mouse_position()) {
-                    continue;
+                    clipped = true;
                 }
             }
 
@@ -202,7 +203,7 @@ impl MouseRegionManager {
                 }
             }
 
-            if region.contains(cx.actual_mouse_position()) {
+            if region.contains(cx.actual_mouse_position()) && !clipped {
                 if !icon_set {
                     if let Some(icon) = region.icon {
                         cx.transform = region.transform;
