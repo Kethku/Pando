@@ -15,6 +15,7 @@ pub struct MouseRegion {
     region: BezPath,
     transform: Affine,
     icon: Option<CursorIcon>,
+    clip_stack: Vec<BezPath>,
     on_drag: Option<Box<dyn Fn(&mut EventContext)>>,
     on_right_drag: Option<Box<dyn Fn(&mut EventContext)>>,
     on_hover: Option<Box<dyn Fn(&mut EventContext)>>,
@@ -29,11 +30,17 @@ pub struct MouseRegion {
 }
 
 impl MouseRegion {
-    pub fn new(token: Token, shape: impl Shape, transform: Affine) -> Self {
+    pub fn new(
+        token: Token,
+        shape: impl Shape,
+        transform: Affine,
+        clip_stack: Vec<BezPath>,
+    ) -> Self {
         MouseRegion {
             region: transform * shape.to_path(0.1),
             token,
             transform,
+            clip_stack,
             icon: None,
             on_drag: None,
             on_right_drag: None,
@@ -167,6 +174,12 @@ impl MouseRegionManager {
 
         // Left mouse button handling
         for region in self.regions.iter().rev() {
+            for clip in region.clip_stack.iter() {
+                if !clip.contains(cx.actual_mouse_position()) {
+                    continue;
+                }
+            }
+
             let mut consume = false;
 
             if let Some(down) = down {

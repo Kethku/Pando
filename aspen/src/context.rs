@@ -6,12 +6,10 @@ use std::{
 };
 
 use mockall::*;
-use parley::{
-    Layout, RangedBuilder, fontique::Collection, layout::PositionedLayoutItem, style::StyleProperty,
-};
+use parley::{Layout, layout::PositionedLayoutItem, style::StyleProperty};
 use vello::{
     Scene,
-    kurbo::{Affine, Line, Point, Rect, RoundedRect, Shape, Size, Stroke, Vec2},
+    kurbo::{Affine, BezPath, Line, Point, Rect, RoundedRect, Shape, Size, Stroke, Vec2},
     peniko::{BlendMode, Brush, Color, Fill},
 };
 use winit::{
@@ -439,6 +437,7 @@ pub struct DrawContext<'a> {
     stroke_brush: Brush,
     fill_brush: Brush,
     transform_stack: Vec<Affine>,
+    clip_stack: Vec<BezPath>,
     scene: &'a mut Scene,
 }
 
@@ -465,6 +464,7 @@ impl<'a> DrawContext<'a> {
             stroke_brush: Brush::Solid(Color::BLACK),
             fill_brush: Brush::Solid(Color::WHITE),
             transform_stack: vec![Affine::IDENTITY],
+            clip_stack: vec![],
             scene,
         }
     }
@@ -629,11 +629,13 @@ impl<'a> DrawContext<'a> {
         self.transform_stack.push(transform);
         self.scene
             .push_layer(BlendMode::default(), alpha, transform, clip);
+        self.clip_stack.push(dbg!(transform * clip.to_path(0.1)));
     }
 
     pub fn pop_layer(&mut self) {
         self.transform_stack.pop();
         self.scene.pop_layer();
+        self.clip_stack.pop();
         if self.transform_stack.is_empty() {
             panic!("Popped too many layers");
         }
@@ -699,6 +701,7 @@ impl<'a> DrawContext<'a> {
             self.context.token(),
             region,
             self.current_transform(),
+            self.clip_stack.clone(),
         ))
     }
 
@@ -737,6 +740,7 @@ impl<'a> DrawContext<'a> {
             stroke_brush: self.stroke_brush.clone(),
             fill_brush: self.fill_brush.clone(),
             transform_stack: self.transform_stack.clone(),
+            clip_stack: self.clip_stack.clone(),
             scene: self.scene,
         }
     }
