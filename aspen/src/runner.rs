@@ -105,10 +105,10 @@ impl<A: Element> WinitApplicationHandler<A> {
             app.draw(&mut draw_context);
             // mouse_region_manager.draw_mouse_regions(&mut scene);
 
-            self.renderer.as_mut().unwrap().draw(&scene);
+            let window = self.renderer.as_ref().unwrap().window.clone();
+            self.renderer.as_mut().unwrap().draw(&scene, &window);
             self.force_redraw = false;
 
-            let window = &self.renderer.as_ref().unwrap().window;
             if !window.is_visible().unwrap_or_default() {
                 window.set_visible(true);
             }

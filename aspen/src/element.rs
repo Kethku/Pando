@@ -167,7 +167,19 @@ mod tests {
         struct TestComponent {}
         let token = Token::new::<TestComponent>();
 
-        let cx = Context::new(&event_state, &event_loop, window.clone(), token);
+        let cx = {
+            let event_state: &'a EventState = &event_state;
+            let event_loop: &'a dyn ContextEventLoop = &event_loop;
+            let window: Arc<dyn ContextWindow> = window.clone();
+            Context {
+                event_state,
+                event_loop,
+                window,
+                shaper: token,
+                default_text_styles: Vec::new(),
+                element_token,
+            }
+        };
 
         let mut regions = HashMap::new();
         let mut children = HashMap::new();
@@ -193,7 +205,20 @@ mod tests {
 
         let mut app = TestApp::new();
 
-        let cx = Context::new(&event_state, &event_loop, window.clone(), app.token());
+        let cx = {
+            let event_state: &'a EventState = &event_state;
+            let event_loop: &'a dyn ContextEventLoop = &event_loop;
+            let window: Arc<dyn ContextWindow> = window.clone();
+            let shaper = app.token();
+            Context {
+                event_state,
+                event_loop,
+                window,
+                shaper,
+                default_text_styles: Vec::new(),
+                element_token,
+            }
+        };
 
         let mut regions = HashMap::new();
         let mut children = HashMap::new();
@@ -223,14 +248,40 @@ mod tests {
         let mut children = HashMap::new();
 
         {
-            let cx = Context::new(&event_state, &event_loop, window.clone(), app.token());
+            let cx = {
+                let event_state: &'a EventState = &event_state;
+                let event_loop: &'a dyn ContextEventLoop = &event_loop;
+                let window: Arc<dyn ContextWindow> = window.clone();
+                let shaper = app.token();
+                Context {
+                    event_state,
+                    event_loop,
+                    window,
+                    shaper,
+                    default_text_styles: Vec::new(),
+                    element_token,
+                }
+            };
             let mut layout_cx = LayoutContext::new(cx, &mut regions, &mut children);
 
             app.layout(Size::new(0., 0.), Size::new(100., 100.), &mut layout_cx)
                 .position(Point::new(10., 10.), &mut layout_cx);
         }
 
-        let cx = Context::new(&event_state, &event_loop, window.clone(), app.token());
+        let cx = {
+            let event_state: &'a EventState = &event_state;
+            let event_loop: &'a dyn ContextEventLoop = &event_loop;
+            let window: Arc<dyn ContextWindow> = window.clone();
+            let shaper = app.token();
+            Context {
+                event_state,
+                event_loop,
+                window,
+                shaper,
+                default_text_styles: Vec::new(),
+                element_token,
+            }
+        };
         let mut mouse_region_manager = MouseRegionManager::new();
         let mut scene = Scene::new();
         let mut draw_cx = DrawContext::new(cx, &mut mouse_region_manager, &regions, &mut scene);

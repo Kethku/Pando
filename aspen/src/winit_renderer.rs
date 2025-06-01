@@ -83,7 +83,7 @@ impl WinitRenderer {
         self.window.request_redraw();
     }
 
-    pub fn draw(&mut self, scene: &Scene) -> bool {
+    pub fn draw(&mut self, scene: &Scene, window: &Window) -> bool {
         let device_handle = &self.render_context.devices[self.render_surface.dev_id];
         self.renderer
             .render_to_texture(
@@ -120,6 +120,9 @@ impl WinitRenderer {
                 .create_view(&TextureViewDescriptor::default()),
         );
         device_handle.queue.submit([encoder.finish()]);
+
+        window.pre_present_notify();
+
         surface_texture.present();
 
         true

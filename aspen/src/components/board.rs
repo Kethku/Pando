@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
 use ordered_float::OrderedFloat;
 use vello::{
-    kurbo::{Affine, Circle, Point, Rect, Size},
+    kurbo::{Affine, Circle, Point, Rect, Size, Vec2},
     peniko::{Brush, Color},
 };
 
@@ -20,6 +20,7 @@ pub struct Board<Child: Pinnable> {
     draw_background: Box<dyn Fn(Rect, &mut DrawContext)>,
     children: Vec<ElementPointer<Child>>,
 
+    center_cache: RefCell<Vec2>,
     transform: Rc<RefCell<Affine>>,
 }
 
@@ -32,6 +33,7 @@ impl<Child: Pinnable> Board<Child> {
             draw_background: Box::new(draw_background),
             children: Vec::new(),
 
+            center_cache: RefCell::new(Vec2::ZERO),
             transform: Rc::new(RefCell::new(transform)),
         })
     }
@@ -90,11 +92,6 @@ impl<Child: Pinnable> Board<Child> {
         Self::new(transform, draw_background)
     }
 
-    pub fn update_transform(&mut self, update: impl FnOnce(Affine) -> Affine) {
-        let transform = *self.transform.borrow();
-        *self.transform.borrow_mut() = update(transform);
-    }
-
     pub fn add_child(&mut self, child: impl Into<ElementPointer<Child>>) {
         self.children.push(child.into());
     }
@@ -112,7 +109,7 @@ impl<Child: Pinnable> Element for Board<Child> {
     }
 
     fn layout(&mut self, _min: Size, max: Size, cx: &mut LayoutContext) -> Size {
-        let transform = self.transform();
+        let transform = Affine::translate((max / 2.).to_vec2()) * self.transform();
         for child in self.children.iter_mut() {
             let result = child.layout(Size::ZERO, Size::INFINITY, cx);
             let position = child.center() - result.size().to_vec2() / 2.;
@@ -123,7 +120,10 @@ impl<Child: Pinnable> Element for Board<Child> {
     }
 
     fn draw(&self, cx: &mut DrawContext) {
-        cx.mouse_region(cx.region())
+        let region = cx.region();
+        let center = region.center().to_vec2();
+        *self.center_cache.borrow_mut() = center;
+        cx.mouse_region(region)
             .on_right_drag({
                 let transform = self.transform.clone();
                 move |cx| {
@@ -139,8 +139,8 @@ impl<Child: Pinnable> Element for Board<Child> {
                 move |cx| {
                     if let Some(pos) = cx.mouse_position() {
                         let mut transform = transform.borrow_mut();
-                        let new_transform =
-                            transform.then_scale_about(1.0 + cx.scroll_delta().y / 100.0, pos);
+                        let new_transform = transform
+                            .then_scale_about(1.0 + cx.scroll_delta().y / 100.0, pos - center);
 
                         let test_length = new_transform.unskewed_scale().length() / 2.0f64.sqrt();
                         if test_length < 100. && test_length > 0.025 {
@@ -155,14 +155,14 @@ impl<Child: Pinnable> Element for Board<Child> {
             .current_transform()
             .inverse()
             .transform_rect_bbox(Rect::from_origin_size(Point::ZERO, cx.window_size));
-        let region = cx.region();
-        let inverse_transform = self.transform().inverse();
+        let adjusted_transform = Affine::translate(center) * self.transform();
+        let inverse_transform = adjusted_transform.inverse();
         let background = inverse_transform
             .transform_rect_bbox(region)
             .intersect(inverse_transform.transform_rect_bbox(window_region));
 
         cx.push_layer(1.0, &region);
-        cx.transform(self.transform());
+        cx.transform(adjusted_transform);
 
         (self.draw_background)(background, cx);
 
