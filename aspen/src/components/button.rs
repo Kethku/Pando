@@ -99,7 +99,10 @@ impl Element for Button {
             });
 
         let state = self.state.borrow();
-        if region.contains(cx.mouse_position()) {
+        if cx
+            .mouse_position()
+            .map_or(false, |pos| region.contains(pos))
+        {
             cx.set_fill_brush(Brush::Solid(
                 self.idle_background
                     .mix(&self.hover_background, state.hover_t),

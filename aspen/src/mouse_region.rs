@@ -66,10 +66,6 @@ impl MouseRegion {
         }
     }
 
-    fn contains(&self, point: Point) -> bool {
-        self.region.contains(point)
-    }
-
     pub fn with_icon(&mut self, icon: CursorIcon) -> &mut Self {
         self.icon = Some(icon);
         self
@@ -193,19 +189,19 @@ impl MouseRegionManager {
         let mut icon_set = false;
 
         if cx.mouse_just_down() {
-            self.down = Some(cx.actual_mouse_position());
+            self.down = cx.actual_mouse_position();
             self.drag_min_reached = false;
         }
 
         if cx.right_mouse_just_down() {
-            self.right_down = Some(cx.actual_mouse_position());
+            self.right_down = cx.actual_mouse_position();
             self.right_drag_min_reached = false;
         }
 
         let down = self.down;
         let mut drag_min_just_reached = false;
-        if let Some(down) = down {
-            if (cx.actual_mouse_position() - down).length() > MIN_DRAG {
+        if let Some((pos, down)) = cx.actual_mouse_position().zip(down) {
+            if (pos - down).length() > MIN_DRAG {
                 if !self.drag_min_reached {
                     drag_min_just_reached = true;
                 }
@@ -216,8 +212,8 @@ impl MouseRegionManager {
 
         let right_down = self.right_down;
         let mut right_drag_min_just_reached = false;
-        if let Some(right_down) = right_down {
-            if (cx.actual_mouse_position() - right_down).length() > MIN_DRAG {
+        if let Some((pos, right_down)) = cx.actual_mouse_position().zip(right_down) {
+            if (pos - right_down).length() > MIN_DRAG {
                 if !self.right_drag_min_reached {
                     right_drag_min_just_reached = true;
                 }
@@ -246,7 +242,11 @@ impl MouseRegionManager {
         let mut cx = EventContext::new(cx, &mut redraw_requested, regions);
         for region in self.mouse_regions.iter().rev() {
             if self.hovered_regions.contains(&region.token) {
-                if !region.contains(cx.actual_mouse_position()) {
+                if !{
+                    let this = &region;
+                    let point = cx.actual_mouse_position();
+                    point.map_or(false, |point| this.region.contains(point))
+                } {
                     if let Some(on_leave) = &region.on_leave {
                         cx.transform = region.transform;
                         on_leave(&mut cx);
@@ -260,13 +260,19 @@ impl MouseRegionManager {
         for region in self.mouse_regions.iter().rev() {
             let mut clipped = false;
             for clip in region.clip_stack.iter() {
-                if !clip.contains(cx.actual_mouse_position()) {
+                if !cx
+                    .actual_mouse_position()
+                    .map_or(false, |pos| clip.contains(pos))
+                {
                     clipped = true;
                 }
             }
 
             if let Some(down) = down {
-                if (cx.actual_mouse_position() - down).length() > MIN_DRAG {
+                if cx
+                    .actual_mouse_position()
+                    .map_or(false, |pos| (pos - down).length() > MIN_DRAG)
+                {
                     self.drag_min_reached = true;
                 }
 
@@ -279,7 +285,7 @@ impl MouseRegionManager {
                         cx.transform = region.transform;
                         let down = cx.transform.inverse() * down;
                         if drag_min_just_reached {
-                            cx.delta_correction = Some(cx.mouse_position() - down);
+                            cx.delta_correction = cx.mouse_position().map(|pos| pos - down);
                         }
                         on_drag(&mut cx);
                         cx.delta_correction = None;
@@ -288,8 +294,8 @@ impl MouseRegionManager {
                 }
             }
 
-            if let Some(right_down) = right_down {
-                if (cx.actual_mouse_position() - right_down).length() > MIN_DRAG {
+            if let Some((pos, right_down)) = cx.actual_mouse_position().zip(right_down) {
+                if (pos - right_down).length() > MIN_DRAG {
                     self.drag_min_reached = true;
                 }
 
@@ -302,7 +308,7 @@ impl MouseRegionManager {
                         cx.transform = region.transform;
                         let right_down = cx.transform.inverse() * right_down;
                         if right_drag_min_just_reached {
-                            cx.delta_correction = Some(cx.mouse_position() - right_down);
+                            cx.delta_correction = cx.mouse_position().map(|pos| pos - right_down);
                         }
                         on_right_drag(&mut cx);
                         cx.delta_correction = None;
@@ -311,7 +317,12 @@ impl MouseRegionManager {
                 }
             }
 
-            if region.contains(cx.actual_mouse_position()) && !clipped {
+            if ({
+                let this = &region;
+                cx.actual_mouse_position()
+                    .map_or(false, |pos| this.region.contains(pos))
+            }) && !clipped
+            {
                 if !icon_set {
                     if let Some(icon) = region.icon {
                         cx.set_cursor(icon);
@@ -404,7 +415,11 @@ impl MouseRegionManager {
         }
 
         for region in self.mouse_regions.iter().rev() {
-            if region.contains(cx.actual_mouse_position()) {
+            if {
+                let this = &region;
+                cx.actual_mouse_position()
+                    .map_or(false, |pos| this.region.contains(pos))
+            } {
                 if cx.scroll_delta() != Vec2::ZERO {
                     if let Some(on_scroll) = &region.on_scroll {
                         cx.transform = region.transform;

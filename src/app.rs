@@ -92,11 +92,12 @@ impl App {
                     let board = board.clone();
                     move |cx| {
                         let mut board = board.borrow_mut();
-                        let board_mouse_position = cx.mouse_position_relative_to(&board);
-                        board.update_transform(|transform| {
-                            transform.pre_rotate_about(0.1, board_mouse_position)
-                        });
-                        cx.request_redraw();
+                        if let Some(board_mouse_position) = cx.mouse_position_relative_to(&board) {
+                            board.update_transform(|transform| {
+                                transform.pre_rotate_about(0.1, board_mouse_position)
+                            });
+                            cx.request_redraw();
+                        }
                     }
                 },
             ),

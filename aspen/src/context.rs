@@ -25,8 +25,8 @@ use crate::{
 };
 
 pub struct EventState {
-    pub mouse_position: Point,
-    pub previous_mouse_position: Point,
+    pub mouse_position: Option<Point>,
+    pub previous_mouse_position: Option<Point>,
     pub window_size: Size,
     pub mouse_down: bool,
     pub right_mouse_down: bool,
@@ -38,8 +38,8 @@ pub struct EventState {
 impl EventState {
     pub fn new() -> Self {
         Self {
-            mouse_position: Point::new(0., 0.),
-            previous_mouse_position: Point::new(0., 0.),
+            mouse_position: None,
+            previous_mouse_position: None,
             window_size: Size::new(0., 0.),
             mouse_down: false,
             right_mouse_down: false,
@@ -96,16 +96,18 @@ impl EventState {
         self.right_mouse_down && self.was_right_mouse_down
     }
 
-    pub fn actual_mouse_position(&self) -> Point {
+    pub fn actual_mouse_position(&self) -> Option<Point> {
         self.mouse_position
     }
 
-    pub fn actual_previous_mouse_position(&self) -> Point {
+    pub fn actual_previous_mouse_position(&self) -> Option<Point> {
         self.previous_mouse_position
     }
 
-    pub fn actual_mouse_delta(&self) -> Vec2 {
-        self.mouse_position - self.previous_mouse_position
+    pub fn actual_mouse_delta(&self) -> Option<Vec2> {
+        self.mouse_position
+            .zip(self.previous_mouse_position)
+            .map(|(pos, prev)| pos - prev)
     }
 
     pub fn scroll_delta(&self) -> Vec2 {
@@ -327,55 +329,71 @@ impl<'a> EventContext<'a> {
         *self.redraw_requested = true;
     }
 
-    pub fn mouse_position(&self) -> Point {
-        self.transform.inverse() * self.actual_mouse_position()
+    pub fn mouse_position(&self) -> Option<Point> {
+        self.actual_mouse_position()
+            .map(|pos| self.transform.inverse() * pos)
     }
 
     pub fn mouse_position_relative_to<Other: Element>(
         &self,
         other: &ElementPointer<Other>,
-    ) -> Point {
+    ) -> Option<Point> {
         self.regions
             .get(&other.token())
-            .map(|(transform, _)| transform.inverse() * self.actual_mouse_position())
+            .map(|(transform, _)| {
+                self.actual_mouse_position()
+                    .map(|pos| transform.inverse() * pos)
+            })
             .expect(&format!(
                 "Layout must not have been completed for this element before drawing: {:?}",
                 other.token()
             ))
     }
 
-    pub fn previous_mouse_position(&self) -> Point {
-        self.transform.inverse() * self.actual_previous_mouse_position()
+    pub fn previous_mouse_position(&self) -> Option<Point> {
+        self.actual_previous_mouse_position()
+            .map(|pos| self.transform.inverse() * pos)
     }
 
     pub fn previous_mouse_position_relative_to<Other: Element>(
         &self,
         other: &ElementPointer<Other>,
-    ) -> Point {
+    ) -> Option<Point> {
         self.regions
             .get(&other.token())
-            .map(|(transform, _)| transform.inverse() * self.actual_previous_mouse_position())
+            .map(|(transform, _)| {
+                self.actual_previous_mouse_position()
+                    .map(|pos| transform.inverse() * pos)
+            })
             .expect(&format!(
                 "Layout must not have been completed for this element before drawing: {:?}",
                 other.token()
             ))
     }
 
-    pub fn mouse_delta(&self) -> Vec2 {
+    pub fn mouse_delta(&self) -> Option<Vec2> {
         if let Some(delta) = self.delta_correction {
-            delta
+            Some(delta)
         } else {
-            self.mouse_position() - self.previous_mouse_position()
+            self.mouse_position()
+                .zip(self.previous_mouse_position())
+                .map(|(pos, prev)| pos - prev)
         }
     }
 
-    pub fn mouse_delta_relative_to<Other: Element>(&self, other: &ElementPointer<Other>) -> Vec2 {
+    pub fn mouse_delta_relative_to<Other: Element>(
+        &self,
+        other: &ElementPointer<Other>,
+    ) -> Option<Vec2> {
         self.regions
             .get(&other.token())
             .map(|(transform, _)| {
-                let inverse = transform.inverse();
-                inverse * self.actual_mouse_position()
-                    - inverse * self.actual_previous_mouse_position()
+                self.actual_mouse_position()
+                    .zip(self.actual_previous_mouse_position())
+                    .map(|(pos, prev)| {
+                        let inverse = transform.inverse();
+                        inverse * pos - inverse * prev
+                    })
             })
             .expect(&format!(
                 "Layout must not have been completed for this element before drawing: {:?}",
@@ -761,51 +779,67 @@ impl<'a> DrawContext<'a> {
         self.update_local_transform(|t| t * transform);
     }
 
-    pub fn mouse_position(&self) -> Point {
-        self.current_transform().inverse() * self.actual_mouse_position()
+    pub fn mouse_position(&self) -> Option<Point> {
+        self.actual_mouse_position()
+            .map(|pos| self.current_transform().inverse() * pos)
     }
 
     pub fn mouse_position_relative_to<Other: Element>(
         &self,
         other: &ElementPointer<Other>,
-    ) -> Point {
+    ) -> Option<Point> {
         self.regions
             .get(&other.token())
-            .map(|(transform, _)| transform.inverse() * self.actual_mouse_position())
+            .map(|(transform, _)| {
+                self.actual_mouse_position()
+                    .map(|pos| transform.inverse() * pos)
+            })
             .expect(&format!(
                 "Layout must not have been completed for this element before drawing: {:?}",
                 other.token()
             ))
     }
 
-    pub fn previous_mouse_position(&self) -> Point {
-        self.current_transform().inverse() * self.actual_previous_mouse_position()
+    pub fn previous_mouse_position(&self) -> Option<Point> {
+        self.actual_previous_mouse_position()
+            .map(|pos| self.current_transform().inverse() * pos)
     }
 
     pub fn previous_mouse_position_relative_to<Other: Element>(
         &self,
         other: &ElementPointer<Other>,
-    ) -> Point {
+    ) -> Option<Point> {
         self.regions
             .get(&other.token())
-            .map(|(transform, _)| transform.inverse() * self.actual_previous_mouse_position())
+            .map(|(transform, _)| {
+                self.actual_previous_mouse_position()
+                    .map(|prev| transform.inverse() * prev)
+            })
             .expect(&format!(
                 "Layout must not have been completed for this element before drawing: {:?}",
                 other.token()
             ))
     }
 
-    pub fn mouse_delta(&self) -> Vec2 {
-        self.mouse_position() - self.previous_mouse_position()
+    pub fn mouse_delta(&self) -> Option<Vec2> {
+        self.mouse_position()
+            .zip(self.previous_mouse_position())
+            .map(|(pos, prev)| pos - prev)
     }
 
-    pub fn mouse_delta_relative_to<Other: Element>(&self, other: &ElementPointer<Other>) -> Vec2 {
+    pub fn mouse_delta_relative_to<Other: Element>(
+        &self,
+        other: &ElementPointer<Other>,
+    ) -> Option<Vec2> {
         self.regions
             .get(&other.token())
             .map(|(transform, _)| {
-                let inverse = transform.inverse();
-                inverse * self.actual_mouse_position()
-                    - inverse * self.actual_previous_mouse_position()
+                self.actual_mouse_position()
+                    .zip(self.actual_previous_mouse_position())
+                    .map(|(pos, prev)| {
+                        let inverse = transform.inverse();
+                        inverse * pos - inverse * prev
+                    })
             })
             .expect(&format!(
                 "Layout must not have been completed for this element before drawing: {:?}",

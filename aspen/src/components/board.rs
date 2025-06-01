@@ -127,22 +127,26 @@ impl<Child: Pinnable> Element for Board<Child> {
             .on_right_drag({
                 let transform = self.transform.clone();
                 move |cx| {
-                    let mut transform = transform.borrow_mut();
-                    *transform = transform.then_translate(cx.mouse_delta());
-                    cx.request_redraw();
+                    if let Some(delta) = cx.mouse_delta() {
+                        let mut transform = transform.borrow_mut();
+                        *transform = transform.then_translate(delta);
+                        cx.request_redraw();
+                    }
                 }
             })
             .on_scroll({
                 let transform = self.transform.clone();
                 move |cx| {
-                    let mut transform = transform.borrow_mut();
-                    let new_transform = transform
-                        .then_scale_about(1.0 + cx.scroll_delta().y / 100.0, cx.mouse_position());
+                    if let Some(pos) = cx.mouse_position() {
+                        let mut transform = transform.borrow_mut();
+                        let new_transform =
+                            transform.then_scale_about(1.0 + cx.scroll_delta().y / 100.0, pos);
 
-                    let test_length = new_transform.unskewed_scale().length() / 2.0f64.sqrt();
-                    if test_length < 100. && test_length > 0.025 {
-                        *transform = new_transform;
-                        cx.request_redraw();
+                        let test_length = new_transform.unskewed_scale().length() / 2.0f64.sqrt();
+                        if test_length < 100. && test_length > 0.025 {
+                            *transform = new_transform;
+                            cx.request_redraw();
+                        }
                     }
                 }
             });
@@ -225,9 +229,11 @@ impl<Child: Element> Element for PinWrapper<Child> {
         cx.mouse_region(cx.region()).on_drag({
             let center = self.center.clone();
             move |cx| {
-                let mut center = center.borrow_mut();
-                *center += cx.mouse_delta();
-                cx.request_redraw();
+                if let Some(delta) = cx.mouse_delta() {
+                    let mut center = center.borrow_mut();
+                    *center += delta;
+                    cx.request_redraw();
+                }
             }
         });
 

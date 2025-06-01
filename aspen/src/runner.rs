@@ -129,7 +129,11 @@ impl<A: Element> ApplicationHandler for WinitApplicationHandler<A> {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::CursorMoved { position, .. } => {
-                self.event_state.mouse_position = Point::new(position.x, position.y);
+                self.event_state.mouse_position = Some(Point::new(position.x, position.y));
+                self.renderer.as_ref().unwrap().window.request_redraw();
+            }
+            WindowEvent::CursorLeft { .. } => {
+                self.event_state.mouse_position = None;
                 self.renderer.as_ref().unwrap().window.request_redraw();
             }
             WindowEvent::MouseInput {
