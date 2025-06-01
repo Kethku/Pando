@@ -1,21 +1,20 @@
 # Aspen
 
-Aspen is a simple UI framework based on Neovide's new wgpu
-renderer Vide and the Winit windowing library. Aspen takes
-ideas for it's design from Zed's gpui (contexts as the 
-primary interface to the OS), Flutter (update -> layout -> 
-draw flow), and Druid (immediate mode graphics as a 
-viable ui framework primitive) and tries to be as simple as 
-possible while still being powerful enough to make real apps.
+Aspen is a simple UI framework based on Vello and the Winit 
+windowing library. Aspen takes ideas for it's design from 
+Zed's gpui (contexts as the primary interface to the OS), 
+Flutter (update -> layout -> draw flow), and Druid (immediate 
+mode graphics as a viable ui framework primitive) and tries 
+to be as simple as possible while still being powerful 
+enough to make real apps.
 
 ## Concepts
 
-### Vide
+### Vello
 
-Aspen uses Vide for all of it's rendering. Vide is built on
+Aspen uses Vello for all of it's rendering. Vello is built on
 a scene model where elements are added in draw order to
-layers. Examples for its usage can be found in the Vide test
-suite [here](https://github.com/neovide/vide/blob/main/src/test.rs).
+layers. Details can be found [here](https://github.com/linebender/vello).
 
 ### Element
 
@@ -42,7 +41,7 @@ the root element. It is then up to the root element to call
 `update` is used to give the app a chance to make state
 changes.
 
-`layout` each element must report the size that it will take
+In `layout` each element must report the size that it will take
 up given a minimum and maximum bound. Further, each child of
 the `element` will return a `LayoutResult` which reports its
 size to its parent. `position` must be called on each
@@ -54,53 +53,52 @@ positions are computed by adjusting all of the child regions
 as the `Element` tree is traversed back up.
 
 Finally `draw` is called to give the tree a chance to draw
-to the `DrawContext`'s `vide::scene::Scene`. The final
+to the `DrawContext`'s `Vello::Scene`. The final
 computed region from the `layout` phase can be accessed by
 any element in the tree via the `region` function.
 
 ### Mouse Region
 
 Mouse input is managed either by functions on the various
-`Context` functions or by the higher level `MouseRegion`
+`Context` objects or by the higher level `MouseRegion`
 structs. The basic idea is that during the `draw` phase,
-`Element`s can call `DrawContext::add_mouse_region` to claim
+`Element`s can call `DrawContext::mouse_region` to claim
 a part of the window as a region that it is interested in
-for various mouse events. 
+for various mouse events.
 
 For example, this is the `Button` element's usage of Mouse
 Regions to manage it's hover states and click functionality:
 
 ```rust
-cx.add_mouse_region(
-    MouseRegion::new(cx.token(), cx.region())
-        .on_hover({
-            let state = self.state.clone();
-            move |_cx| {
-                let mut state = state.borrow_mut();
-                if !state.hovered {
-                    state.hovered = true;
-                    state.hover_start = Instant::now();
-                }
+let region = cx.region();
+cx.mouse_region(region)
+    .on_hover({
+        let state = self.state.clone();
+        move |_cx| {
+            let mut state = state.borrow_mut();
+            if !state.hovered {
+                state.hovered = true;
+                state.hover_start = Instant::now();
             }
-        })
-        .on_leave({
-            let state = self.state.clone();
-            move |_cx| {
-                let mut state = state.borrow_mut();
-                if state.hovered {
-                    state.hovered = false;
-                    state.hover_start = Instant::now();
-                }
+        }
+    })
+    .on_leave({
+        let state = self.state.clone();
+        move |_cx| {
+            let mut state = state.borrow_mut();
+            if state.hovered {
+                state.hovered = false;
+                state.hover_start = Instant::now();
             }
-        })
-        .on_clicked({
-            let state = self.state.clone();
-            move |cx| {
-                let state = state.borrow();
-                (state.on_clicked)(cx);
-            }
-        }),
-);
+        }
+    })
+    .on_click({
+        let state = self.state.clone();
+        move |cx| {
+            let state = state.borrow();
+            (state.on_clicked)(cx);
+        }
+    });
 ```
 
 The neat part about this approach is that the mouse region's
