@@ -1,5 +1,5 @@
 use vello::{
-    kurbo::{BezPath, Line, Point, Rect, Size, Stroke, Vec2},
+    kurbo::{Affine, BezPath, Line, Rect, Size, Stroke, Vec2},
     peniko::{Brush, Color},
 };
 
@@ -124,15 +124,15 @@ impl Element for WindowButtons {
 
         let close_result = self.close.layout(button_size, button_size, cx);
         current_x -= close_result.size().width;
-        close_result.position(Point::new(current_x, 0.), cx);
+        close_result.position(Affine::translate((current_x, 0.)), cx);
 
         let maximize_result = self.maximize.layout(button_size, button_size, cx);
         current_x -= maximize_result.size().width;
-        maximize_result.position(Point::new(current_x, 0.), cx);
+        maximize_result.position(Affine::translate((current_x, 0.)), cx);
 
         let minimize_result = self.minimize.layout(button_size, button_size, cx);
         current_x -= minimize_result.size().width;
-        minimize_result.position(Point::new(current_x, 0.), cx);
+        minimize_result.position(Affine::translate((current_x, 0.)), cx);
 
         Size::new(max.width, TITLEBAR_HEIGHT)
     }

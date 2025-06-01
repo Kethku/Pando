@@ -19,7 +19,7 @@ use winit::{
 
 use crate::{
     element::{Element, ElementPointer},
-    mouse_region::{MouseRegion, MouseRegionManager},
+    mouse_region::{MouseRegion, MouseRegionManager, RegionToken},
     shaper::Shaper,
     token::Token,
 };
@@ -210,8 +210,8 @@ impl<'a> Context<'a> {
             .layout_within(text, max_advance, &self.default_text_styles)
     }
 
-    pub fn token(&self) -> Token {
-        self.element_token
+    pub fn token(&self) -> &Token {
+        &self.element_token
     }
 
     pub fn child<'b>(&self, element_token: Token) -> Context<'b>
@@ -290,6 +290,7 @@ impl ContextWindow for Window {
 pub struct EventContext<'a> {
     context: &'a Context<'a>,
     redraw_requested: &'a mut bool,
+    regions: &'a HashMap<Token, (Affine, Size)>,
     // Used when a drag just crossed the min threshold to report as a drag so that the dragger can
     // get a delta value that includes the threshold distance for the first mouse delta.
     //
@@ -308,10 +309,15 @@ impl<'a> Deref for EventContext<'a> {
 }
 
 impl<'a> EventContext<'a> {
-    pub fn new(context: &'a Context<'a>, redraw_requested: &'a mut bool) -> EventContext<'a> {
+    pub fn new(
+        context: &'a Context<'a>,
+        redraw_requested: &'a mut bool,
+        regions: &'a HashMap<Token, (Affine, Size)>,
+    ) -> EventContext<'a> {
         EventContext {
             context,
             redraw_requested,
+            regions,
             delta_correction: None,
             transform: Affine::IDENTITY,
         }
@@ -325,8 +331,34 @@ impl<'a> EventContext<'a> {
         self.transform.inverse() * self.actual_mouse_position()
     }
 
+    pub fn mouse_position_relative_to<Other: Element>(
+        &self,
+        other: &ElementPointer<Other>,
+    ) -> Point {
+        self.regions
+            .get(&other.token())
+            .map(|(transform, _)| transform.inverse() * self.actual_mouse_position())
+            .expect(&format!(
+                "Layout must not have been completed for this element before drawing: {:?}",
+                other.token()
+            ))
+    }
+
     pub fn previous_mouse_position(&self) -> Point {
         self.transform.inverse() * self.actual_previous_mouse_position()
+    }
+
+    pub fn previous_mouse_position_relative_to<Other: Element>(
+        &self,
+        other: &ElementPointer<Other>,
+    ) -> Point {
+        self.regions
+            .get(&other.token())
+            .map(|(transform, _)| transform.inverse() * self.actual_previous_mouse_position())
+            .expect(&format!(
+                "Layout must not have been completed for this element before drawing: {:?}",
+                other.token()
+            ))
     }
 
     pub fn mouse_delta(&self) -> Vec2 {
@@ -335,6 +367,20 @@ impl<'a> EventContext<'a> {
         } else {
             self.mouse_position() - self.previous_mouse_position()
         }
+    }
+
+    pub fn mouse_delta_relative_to<Other: Element>(&self, other: &ElementPointer<Other>) -> Vec2 {
+        self.regions
+            .get(&other.token())
+            .map(|(transform, _)| {
+                let inverse = transform.inverse();
+                inverse * self.actual_mouse_position()
+                    - inverse * self.actual_previous_mouse_position()
+            })
+            .expect(&format!(
+                "Layout must not have been completed for this element before drawing: {:?}",
+                other.token()
+            ))
     }
 
     pub fn window_bounding_box(&self) -> Rect {
@@ -394,7 +440,7 @@ impl<'a> UpdateContext<'a> {
 
 pub struct LayoutContext<'a> {
     context: Context<'a>,
-    regions: &'a mut HashMap<Token, Rect>,
+    regions: &'a mut HashMap<Token, (Affine, Size)>,
     children: &'a mut HashMap<Token, HashSet<Token>>,
 }
 
@@ -415,7 +461,7 @@ impl<'a> DerefMut for LayoutContext<'a> {
 impl<'a> LayoutContext<'a> {
     pub fn new(
         context: Context<'a>,
-        regions: &'a mut HashMap<Token, Rect>,
+        regions: &'a mut HashMap<Token, (Affine, Size)>,
         children: &'a mut HashMap<Token, HashSet<Token>>,
     ) -> LayoutContext<'a> {
         LayoutContext {
@@ -425,15 +471,18 @@ impl<'a> LayoutContext<'a> {
         }
     }
 
-    pub fn add_region(&mut self, token: Token, rect: Rect) {
-        self.regions.insert(token, rect);
+    pub fn add_region(&mut self, token: Token, transform: Affine, size: Size) {
+        self.regions.insert(token, (transform, size));
     }
 
     pub fn child<'b>(&'b mut self, token: Token) -> LayoutContext<'b>
     where
         'a: 'b,
     {
-        self.children.entry(self.token()).or_default().insert(token);
+        self.children
+            .entry(*self.token())
+            .or_default()
+            .insert(token);
         let child_cx: Context<'b> = self.context.child(token);
         LayoutContext::<'b> {
             context: child_cx,
@@ -441,27 +490,23 @@ impl<'a> LayoutContext<'a> {
             children: self.children,
         }
     }
-
-    pub fn translate_descendants(&mut self, token: Token, offset: Vec2) {
-        if let Some(children) = self.children.get(&token).cloned() {
-            for child in children.iter() {
-                if let Some(region) = self.regions.get_mut(child) {
-                    *region = *region + offset;
-                    self.translate_descendants(*child, offset);
-                }
-            }
-        }
-    }
 }
 
 pub struct DrawContext<'a> {
     context: Context<'a>,
     mouse_region_manager: &'a mut MouseRegionManager,
-    regions: &'a HashMap<Token, Rect>,
+    mouse_region_count: usize,
+    child_lookup: &'a HashMap<Token, HashSet<Token>>,
+    // Lookup table for all element's transforms and sizes in element transform coordinates
+    regions: &'a HashMap<Token, (Affine, Size)>,
     stroke_style: Stroke,
     stroke_brush: Brush,
     fill_brush: Brush,
-    transform_stack: Vec<Affine>,
+    // Transform for this element computed during layout
+    element_transform: Affine,
+    // Transform list local to this element. Used to enable layer local transforms.
+    local_transform_stack: Vec<Affine>,
+    // Currently active clipping paths in window space
     clip_stack: Vec<BezPath>,
     scene: &'a mut Scene,
 }
@@ -478,17 +523,21 @@ impl<'a> DrawContext<'a> {
     pub fn new(
         context: Context<'a>,
         mouse_region_manager: &'a mut MouseRegionManager,
-        regions: &'a HashMap<Token, Rect>,
+        child_lookup: &'a HashMap<Token, HashSet<Token>>,
+        regions: &'a HashMap<Token, (Affine, Size)>,
         scene: &'a mut Scene,
     ) -> DrawContext<'a> {
         DrawContext {
             context,
             mouse_region_manager,
+            mouse_region_count: 0,
+            child_lookup,
             regions,
             stroke_style: Stroke::new(2.),
             stroke_brush: Brush::Solid(Color::BLACK),
             fill_brush: Brush::Solid(Color::WHITE),
-            transform_stack: vec![Affine::IDENTITY],
+            element_transform: Affine::IDENTITY,
+            local_transform_stack: vec![Affine::IDENTITY],
             clip_stack: vec![],
             scene,
         }
@@ -505,7 +554,7 @@ impl<'a> DrawContext<'a> {
     pub fn stroke(&mut self, shape: &impl Shape) {
         self.scene.stroke(
             &self.stroke_style,
-            self.transform_stack.last().copied().unwrap(),
+            self.current_transform(),
             &self.stroke_brush,
             None,
             shape,
@@ -519,7 +568,7 @@ impl<'a> DrawContext<'a> {
     pub fn fill(&mut self, shape: &impl Shape) {
         self.scene.fill(
             Fill::NonZero,
-            self.transform_stack.last().copied().unwrap(),
+            self.current_transform(),
             &self.fill_brush,
             None,
             shape,
@@ -534,7 +583,7 @@ impl<'a> DrawContext<'a> {
     pub fn blurred(&mut self, rounded_rect: RoundedRect, std_dev: f64) {
         if let Brush::Solid(color) = self.fill_brush {
             self.scene.draw_blurred_rounded_rect(
-                self.transform_stack.last().copied().unwrap(),
+                self.current_transform(),
                 rounded_rect.rect(),
                 color,
                 rounded_rect.radii().as_single_radius().unwrap(),
@@ -650,69 +699,118 @@ impl<'a> DrawContext<'a> {
     }
 
     pub fn push_layer(&mut self, alpha: f32, clip: &impl Shape) {
+        {
+            // Clone most recent local transform onto the stack
+            let local_transform = self.local_transform_stack.last().copied().unwrap();
+            self.local_transform_stack.push(local_transform);
+        }
+
         let transform = self.current_transform();
-        self.transform_stack.push(transform);
         self.scene
             .push_layer(BlendMode::default(), alpha, transform, clip);
         self.clip_stack.push(transform * clip.to_path(0.1));
     }
 
     pub fn pop_layer(&mut self) {
-        self.transform_stack.pop();
+        self.local_transform_stack.pop();
         self.scene.pop_layer();
         self.clip_stack.pop();
-        if self.transform_stack.is_empty() {
+        if self.local_transform_stack.is_empty() {
             panic!("Popped too many layers");
         }
     }
 
-    pub fn current_transform(&self) -> Affine {
-        self.transform_stack.last().copied().unwrap()
+    pub fn element_transform(&self) -> Affine {
+        self.element_transform
     }
 
-    pub fn update_transform(&mut self, update: impl FnOnce(Affine) -> Affine) {
-        let transform = self.transform_stack.last_mut().unwrap();
+    pub fn current_transform(&self) -> Affine {
+        self.element_transform * *self.local_transform_stack.last().unwrap()
+    }
+
+    pub fn update_local_transform(&mut self, update: impl FnOnce(Affine) -> Affine) {
+        let transform = self.local_transform_stack.last_mut().unwrap();
         *transform = update(*transform);
     }
 
     pub fn rotate(&mut self, radians: f64) {
-        self.update_transform(|t| t.then_rotate(radians));
+        self.update_local_transform(|t| t.then_rotate(radians));
     }
 
     pub fn rotate_about(&mut self, radians: f64, center: Point) {
-        self.update_transform(|t| t.then_rotate_about(radians, center));
+        self.update_local_transform(|t| t.then_rotate_about(radians, center));
     }
 
     pub fn scale(&mut self, scale: f64) {
-        self.update_transform(|t| t.then_scale(scale));
+        self.update_local_transform(|t| t.then_scale(scale));
     }
 
     pub fn scale_non_uniform(&mut self, scale_x: f64, scale_y: f64) {
-        self.update_transform(|t| t.then_scale_non_uniform(scale_x, scale_y));
+        self.update_local_transform(|t| t.then_scale_non_uniform(scale_x, scale_y));
     }
 
     pub fn scale_about(&mut self, scale: f64, center: Point) {
-        self.update_transform(|t| t.then_scale_about(scale, center));
+        self.update_local_transform(|t| t.then_scale_about(scale, center));
     }
 
     pub fn translate(&mut self, offset: Vec2) {
-        self.update_transform(|t| t.then_translate(offset));
+        self.update_local_transform(|t| t.then_translate(offset));
     }
 
     pub fn transform(&mut self, transform: Affine) {
-        self.update_transform(|t| t * transform);
+        self.update_local_transform(|t| t * transform);
     }
 
     pub fn mouse_position(&self) -> Point {
         self.current_transform().inverse() * self.actual_mouse_position()
     }
 
+    pub fn mouse_position_relative_to<Other: Element>(
+        &self,
+        other: &ElementPointer<Other>,
+    ) -> Point {
+        self.regions
+            .get(&other.token())
+            .map(|(transform, _)| transform.inverse() * self.actual_mouse_position())
+            .expect(&format!(
+                "Layout must not have been completed for this element before drawing: {:?}",
+                other.token()
+            ))
+    }
+
     pub fn previous_mouse_position(&self) -> Point {
         self.current_transform().inverse() * self.actual_previous_mouse_position()
     }
 
+    pub fn previous_mouse_position_relative_to<Other: Element>(
+        &self,
+        other: &ElementPointer<Other>,
+    ) -> Point {
+        self.regions
+            .get(&other.token())
+            .map(|(transform, _)| transform.inverse() * self.actual_previous_mouse_position())
+            .expect(&format!(
+                "Layout must not have been completed for this element before drawing: {:?}",
+                other.token()
+            ))
+    }
+
     pub fn mouse_delta(&self) -> Vec2 {
         self.mouse_position() - self.previous_mouse_position()
+    }
+
+    pub fn mouse_delta_relative_to<Other: Element>(&self, other: &ElementPointer<Other>) -> Vec2 {
+        self.regions
+            .get(&other.token())
+            .map(|(transform, _)| {
+                let inverse = transform.inverse();
+                inverse * self.actual_mouse_position()
+                    - inverse * self.actual_previous_mouse_position()
+            })
+            .expect(&format!(
+                "Layout must not have been completed for this element before drawing: {:?}",
+                other.token()
+            ))
     }
 
     pub fn window_bounding_box(&self) -> Rect {
@@ -721,17 +819,24 @@ impl<'a> DrawContext<'a> {
             .transform_rect_bbox(self.actual_window_rect())
     }
 
+    pub fn window_shape(&self) -> BezPath {
+        self.current_transform().inverse() * self.actual_window_rect().to_path(0.1)
+    }
+
     pub fn mouse_region(&mut self, region: impl Shape) -> &mut MouseRegion {
         self.mouse_region_manager.add_region(MouseRegion::new(
-            self.context.token(),
+            RegionToken {
+                token: *self.context.token(),
+                index: {
+                    let index = self.mouse_region_count;
+                    self.mouse_region_count += 1;
+                    index
+                },
+            },
             region,
             self.current_transform(),
             self.clip_stack.clone(),
         ))
-    }
-
-    pub fn add_mouse_region(&mut self, mouse_region: MouseRegion) {
-        self.mouse_region_manager.add_region(mouse_region);
     }
 
     pub fn request_redraw(&self) {
@@ -741,30 +846,74 @@ impl<'a> DrawContext<'a> {
     pub fn region(&self) -> Rect {
         self.regions
             .get(&self.context.token())
-            .copied()
+            .map(|(_, size)| Rect::from_origin_size(Point::ZERO, *size))
             .expect("Layout must not have been completed before drawing")
     }
 
-    pub fn child_region<Child: Element>(&self, child: &ElementPointer<Child>) -> Rect {
+    pub fn region_of<Other: Element>(&self, other: &ElementPointer<Other>) -> BezPath {
         self.regions
-            .get(&child.token())
-            .copied()
-            .expect("Layout must not have been completed for this child before drawing")
+            .get(&other.token())
+            .map(|(transform, size)| {
+                *transform * Rect::from_origin_size(Point::ZERO, *size).to_path(0.1)
+            })
+            .expect(&format!(
+                "Layout must not have been completed for this element before drawing: {:?}",
+                other.token()
+            ))
     }
 
-    pub fn child<'b>(&'b mut self, token: Token) -> DrawContext<'b>
+    pub fn transform_of<Other: Element>(&self, other: &ElementPointer<Other>) -> Affine {
+        self.transform_by_token(other.token())
+    }
+
+    fn transform_by_token(&self, other_token: &Token) -> Affine {
+        self.regions
+            .get(other_token)
+            .map(|(transform, _)| *transform)
+            .expect(&format!(
+                "Layout must not have been completed for this element before drawing: {:?}",
+                other_token
+            ))
+    }
+
+    fn any_in_progress_mouse_regions_recursive(&self, token: &Token) -> bool {
+        if self.mouse_region_manager.token_currently_tracked(token) {
+            return true;
+        }
+
+        if let Some(children) = self.child_lookup.get(token) {
+            for token in children {
+                if self.any_in_progress_mouse_regions_recursive(token) {
+                    return true;
+                }
+            }
+            false
+        } else {
+            false
+        }
+    }
+
+    pub fn any_in_progress_mouse_regions(&self) -> bool {
+        self.any_in_progress_mouse_regions_recursive(self.token())
+    }
+
+    pub(crate) fn child<'b>(&'b mut self, token: &Token) -> DrawContext<'b>
     where
         'a: 'b,
     {
-        let child_cx: Context<'b> = self.context.child(token);
+        let element_transform = self.element_transform * self.transform_by_token(token);
+        let child_cx: Context<'b> = self.context.child(*token);
         DrawContext::<'b> {
             context: child_cx,
             mouse_region_manager: self.mouse_region_manager,
+            mouse_region_count: 0,
+            child_lookup: self.child_lookup,
             regions: self.regions,
             stroke_style: self.stroke_style.clone(),
             stroke_brush: self.stroke_brush.clone(),
             fill_brush: self.fill_brush.clone(),
-            transform_stack: self.transform_stack.clone(),
+            element_transform,
+            local_transform_stack: vec![Affine::IDENTITY],
             clip_stack: self.clip_stack.clone(),
             scene: self.scene,
         }

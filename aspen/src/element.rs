@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use vello::kurbo::{Point, Rect, Size};
+use vello::kurbo::{Affine, Point, Rect, Size};
 
 use crate::{
     context::{DrawContext, LayoutContext, UpdateContext},
@@ -26,8 +26,8 @@ impl<E: Element> ElementPointer<E> {
         }
     }
 
-    pub fn token(&self) -> Token {
-        self.token
+    pub fn token(&self) -> &Token {
+        &self.token
     }
 
     pub fn update<'a>(&mut self, cx: &mut UpdateContext) {
@@ -46,7 +46,22 @@ impl<E: Element> ElementPointer<E> {
     }
 
     pub fn draw<'a>(&self, cx: &mut DrawContext) {
-        let mut child_cx = cx.child(self.token);
+        let mut child_cx = cx.child(&self.token);
+
+        if !child_cx.any_in_progress_mouse_regions() {
+            let window_region = Rect::from_origin_size(Point::ZERO, child_cx.window_size);
+            let child_region = child_cx
+                .current_transform()
+                .transform_rect_bbox(child_cx.region());
+            if !window_region.overlaps(child_region) {
+                return;
+            }
+
+            if child_region.area() < 1. {
+                return;
+            }
+        }
+
         self.element.draw(&mut child_cx);
     }
 }
@@ -82,9 +97,8 @@ impl LayoutResult {
         self.size
     }
 
-    pub fn position(self, position: Point, cx: &mut LayoutContext) -> Size {
-        cx.translate_descendants(self.token, position.to_vec2());
-        cx.add_region(self.token, Rect::from_origin_size(position, self.size));
+    pub fn position(self, transform: Affine, cx: &mut LayoutContext) -> Size {
+        cx.add_region(self.token, transform, self.size);
         self.size
     }
 }

@@ -1,4 +1,4 @@
-use vello::kurbo::{Point, Size};
+use vello::kurbo::{Affine, Size};
 use winit::window::{CursorIcon, ResizeDirection};
 
 use crate::{
@@ -27,11 +27,11 @@ impl ResizeHandles {
 impl Element for ResizeHandles {
     fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size {
         for handle in self.edge_handles.iter_mut() {
-            handle.layout(min, max, cx).position(Point::ZERO, cx);
+            handle.layout(min, max, cx).position(Affine::IDENTITY, cx);
         }
 
         for handle in self.corner_handles.iter_mut() {
-            handle.layout(min, max, cx).position(Point::ZERO, cx);
+            handle.layout(min, max, cx).position(Affine::IDENTITY, cx);
         }
 
         max

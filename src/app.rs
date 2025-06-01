@@ -46,9 +46,9 @@ impl Element for AppPin {
 
     fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size {
         match self {
-            AppPin::Todo(todo) => todo.layout(min, max, cx).position(Point::ZERO, cx),
-            AppPin::Button(button) => button.layout(min, max, cx).position(Point::ZERO, cx),
-            AppPin::Board(board) => board.layout(min, max, cx).position(Point::ZERO, cx),
+            AppPin::Todo(todo) => todo.layout(min, max, cx).position(Affine::IDENTITY, cx),
+            AppPin::Button(button) => button.layout(min, max, cx).position(Affine::IDENTITY, cx),
+            AppPin::Board(board) => board.layout(min, max, cx).position(Affine::IDENTITY, cx),
         }
     }
 
@@ -92,9 +92,9 @@ impl App {
                     let board = board.clone();
                     move |cx| {
                         let mut board = board.borrow_mut();
+                        let board_mouse_position = cx.mouse_position_relative_to(&board);
                         board.update_transform(|transform| {
-                            let about = transform * cx.mouse_position();
-                            transform.pre_rotate_about(0.1, about)
+                            transform.pre_rotate_about(0.1, board_mouse_position)
                         });
                         cx.request_redraw();
                     }
@@ -133,13 +133,13 @@ impl Element for App {
         self.board
             .borrow_mut()
             .layout(min, max, cx)
-            .position(Point::ZERO, cx);
+            .position(Affine::IDENTITY, cx);
         self.window_buttons
             .layout(Size::new(0., 0.), max, cx)
-            .position(Point::ZERO, cx);
+            .position(Affine::IDENTITY, cx);
         self.resize_handles
             .layout(min, max, cx)
-            .position(Point::ZERO, cx);
+            .position(Affine::IDENTITY, cx);
 
         max
     }

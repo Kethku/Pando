@@ -9,7 +9,7 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new<C>() -> Self {
+    pub(crate) fn new<C>() -> Self {
         let id = CURRENT_TOKEN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Token {
             id,

@@ -1,6 +1,10 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-use vello::kurbo::{Affine, BezPath, Point, Shape, Vec2};
+use vello::{
+    kurbo::{Affine, BezPath, Point, Shape, Size, Vec2},
+    peniko::{Brush, Color, Fill},
+    Scene,
+};
 use winit::window::CursorIcon;
 
 use crate::{
@@ -10,8 +14,14 @@ use crate::{
 
 const MIN_DRAG: f64 = 3.;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct RegionToken {
+    pub(crate) token: Token,
+    pub(crate) index: usize,
+}
+
 pub struct MouseRegion {
-    token: Token,
+    token: RegionToken,
     region: BezPath,
     transform: Affine,
     icon: Option<CursorIcon>,
@@ -31,7 +41,7 @@ pub struct MouseRegion {
 
 impl MouseRegion {
     pub fn new(
-        token: Token,
+        token: RegionToken,
         shape: impl Shape,
         transform: Affine,
         clip_stack: Vec<BezPath>,
@@ -122,21 +132,22 @@ impl MouseRegion {
 }
 
 pub struct MouseRegionManager {
+    pub(crate) mouse_regions: Vec<MouseRegion>,
     down: Option<Point>,
     right_down: Option<Point>,
     drag_min_reached: bool,
     right_drag_min_reached: bool,
-    current_dragger: Option<Token>,
-    current_right_dragger: Option<Token>,
-    current_clicker: Option<Token>,
-    current_right_clicker: Option<Token>,
-    regions: Vec<MouseRegion>,
-    hovered_regions: HashSet<Token>,
+    current_dragger: Option<RegionToken>,
+    current_right_dragger: Option<RegionToken>,
+    current_clicker: Option<RegionToken>,
+    current_right_clicker: Option<RegionToken>,
+    hovered_regions: HashSet<RegionToken>,
 }
 
 impl MouseRegionManager {
     pub fn new() -> Self {
         MouseRegionManager {
+            mouse_regions: Vec::new(),
             down: None,
             right_down: None,
             drag_min_reached: false,
@@ -145,21 +156,40 @@ impl MouseRegionManager {
             current_right_dragger: None,
             current_clicker: None,
             current_right_clicker: None,
-            regions: Vec::new(),
             hovered_regions: HashSet::new(),
         }
     }
 
     pub fn clear_regions(&mut self) {
-        self.regions.clear();
+        self.mouse_regions.clear();
     }
 
     pub fn add_region(&mut self, region: MouseRegion) -> &mut MouseRegion {
-        self.regions.push(region);
-        self.regions.last_mut().unwrap()
+        self.mouse_regions.push(region);
+        self.mouse_regions.last_mut().unwrap()
     }
 
-    pub fn process_regions(&mut self, cx: &Context) -> bool {
+    /// Indicates if any mouse regions associated with this Token are currently tracked. Useful to
+    /// continue rendering even if a region would normally be culled.
+    pub fn token_currently_tracked(&self, token: &Token) -> bool {
+        self.current_dragger
+            .map_or(false, |region_token| &region_token.token == token)
+            || self
+                .current_right_dragger
+                .map_or(false, |region_token| &region_token.token == token)
+            || self
+                .current_clicker
+                .map_or(false, |region_token| &region_token.token == token)
+            || self
+                .current_right_clicker
+                .map_or(false, |region_token| &region_token.token == token)
+    }
+
+    pub fn process_regions(
+        &mut self,
+        regions: &mut HashMap<Token, (Affine, Size)>,
+        cx: &Context,
+    ) -> bool {
         let mut icon_set = false;
 
         if cx.mouse_just_down() {
@@ -213,8 +243,8 @@ impl MouseRegionManager {
         }
 
         let mut redraw_requested = false;
-        let mut cx = EventContext::new(cx, &mut redraw_requested);
-        for region in self.regions.iter().rev() {
+        let mut cx = EventContext::new(cx, &mut redraw_requested, regions);
+        for region in self.mouse_regions.iter().rev() {
             if self.hovered_regions.contains(&region.token) {
                 if !region.contains(cx.actual_mouse_position()) {
                     if let Some(on_leave) = &region.on_leave {
@@ -227,7 +257,7 @@ impl MouseRegionManager {
 
         let mut left_consumed = false;
         let mut right_consumed = false;
-        for region in self.regions.iter().rev() {
+        for region in self.mouse_regions.iter().rev() {
             let mut clipped = false;
             for clip in region.clip_stack.iter() {
                 if !clip.contains(cx.actual_mouse_position()) {
@@ -284,7 +314,6 @@ impl MouseRegionManager {
             if region.contains(cx.actual_mouse_position()) && !clipped {
                 if !icon_set {
                     if let Some(icon) = region.icon {
-                        cx.transform = region.transform;
                         cx.set_cursor(icon);
                         icon_set = true;
                     }
@@ -374,7 +403,7 @@ impl MouseRegionManager {
             }
         }
 
-        for region in self.regions.iter().rev() {
+        for region in self.mouse_regions.iter().rev() {
             if region.contains(cx.actual_mouse_position()) {
                 if cx.scroll_delta() != Vec2::ZERO {
                     if let Some(on_scroll) = &region.on_scroll {
@@ -391,5 +420,21 @@ impl MouseRegionManager {
         }
 
         redraw_requested
+    }
+
+    pub fn draw_mouse_regions(&self, scene: &mut Scene) {
+        let base_color = Color::new([1., 0., 0., 0.25]);
+        let region_count = self.mouse_regions.len();
+        for (i, region) in self.mouse_regions.iter().enumerate() {
+            scene.fill(
+                Fill::NonZero,
+                Affine::IDENTITY,
+                &Brush::Solid(
+                    base_color.map_hue(|x| x + (i as f32 * 360.) / (region_count as f32)),
+                ),
+                None,
+                &region.region,
+            );
+        }
     }
 }

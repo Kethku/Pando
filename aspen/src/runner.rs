@@ -2,7 +2,7 @@ use futures::executor::block_on;
 use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use vello::{
-    kurbo::{Point, Size, Vec2},
+    kurbo::{Affine, Point, Size, Vec2},
     Scene,
 };
 use winit::{
@@ -30,6 +30,8 @@ struct WinitApplicationHandler<A: Element> {
     renderer: Option<WinitRenderer>,
     shaper: RefCell<Shaper>,
 
+    regions: RefCell<HashMap<Token, (Affine, Size)>>,
+    token: Token,
     force_redraw: bool,
 }
 
@@ -42,6 +44,8 @@ impl<A: Element> WinitApplicationHandler<A> {
             renderer: None,
             shaper: RefCell::new(Shaper::new()),
 
+            regions: RefCell::new(HashMap::new()),
+            token: Token::new::<Self>(),
             force_redraw: false,
         }
     }
@@ -50,24 +54,26 @@ impl<A: Element> WinitApplicationHandler<A> {
         WinitRenderer::new(window).await
     }
 
-    fn context<'a>(&'a self, event_loop: &'a ActiveEventLoop, element_token: Token) -> Context<'a> {
+    fn context<'a>(&'a self, event_loop: &'a ActiveEventLoop) -> Context<'a> {
         Context::new(
             &self.event_state,
             event_loop,
             self.renderer.as_ref().unwrap().window.clone(),
             &self.shaper,
-            element_token,
+            self.token,
         )
     }
 
     fn draw_frame(&mut self, event_loop: &ActiveEventLoop) {
         let mut mouse_region_manager = self.mouse_region_manager.borrow_mut();
         let mut app = self.app.borrow_mut();
+        let mut regions = self.regions.borrow_mut();
+
         let mut redraw_requested =
-            mouse_region_manager.process_regions(&self.context(event_loop, app.token()));
+            mouse_region_manager.process_regions(&mut regions, &self.context(event_loop));
         {
             let mut update_context = UpdateContext::new(
-                self.context(event_loop, app.token()),
+                self.context(event_loop),
                 &mut mouse_region_manager,
                 &mut redraw_requested,
             );
@@ -75,31 +81,29 @@ impl<A: Element> WinitApplicationHandler<A> {
         }
 
         if redraw_requested || self.force_redraw {
-            let mut regions = HashMap::new();
-            let mut children = HashMap::new();
+            let mut child_lookup = HashMap::new();
             {
-                let mut layout_context = LayoutContext::new(
-                    self.context(event_loop, app.token()),
-                    &mut regions,
-                    &mut children,
-                );
+                let mut layout_context =
+                    LayoutContext::new(self.context(event_loop), &mut regions, &mut child_lookup);
                 let result = app.layout(
                     self.event_state.window_size,
                     self.event_state.window_size,
                     &mut layout_context,
                 );
-                result.position(Point::new(0., 0.), &mut layout_context);
+                result.position(Affine::IDENTITY, &mut layout_context);
             }
 
             mouse_region_manager.clear_regions();
             let mut scene = Scene::new();
             let mut draw_context = DrawContext::new(
-                self.context(event_loop, app.token()),
+                self.context(event_loop),
                 &mut mouse_region_manager,
+                &child_lookup,
                 &regions,
                 &mut scene,
             );
             app.draw(&mut draw_context);
+            // mouse_region_manager.draw_mouse_regions(&mut scene);
 
             self.renderer.as_mut().unwrap().draw(&scene);
             self.force_redraw = false;
