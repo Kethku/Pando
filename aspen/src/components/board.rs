@@ -125,7 +125,7 @@ impl Element for Board {
             let result = child.layout(Size::ZERO, Size::INFINITY, cx);
             let position =
                 child.with_context(cx, |cx| child.center(cx)) - result.size().to_vec2() / 2.;
-            result.position(transform.then_translate(position.to_vec2()), cx);
+            result.position(transform.pre_translate(position.to_vec2()), cx);
         }
 
         max
