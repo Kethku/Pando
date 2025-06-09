@@ -4,7 +4,7 @@ use vello::{
 };
 
 use crate::{
-    context::{DrawContext, LayoutContext, UpdateContext},
+    context_stack::{DrawContext, LayoutContext, UpdateContext},
     element::{Element, ElementPointer},
     util::{PointExt, RectExt},
 };

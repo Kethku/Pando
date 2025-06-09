@@ -1,8 +1,8 @@
-use parley::{Layout, style::StyleProperty};
+use parley::{style::StyleProperty, Layout};
 use vello::{kurbo::Size, peniko::Brush};
 
 use crate::{
-    context::{DrawContext, LayoutContext},
+    context_stack::{DrawContext, LayoutContext},
     element::{Element, ElementPointer},
 };
 

@@ -6,7 +6,7 @@ use vello::{
 };
 
 use crate::{
-    context::{DrawContext, EventContext, LayoutContext, UpdateContext},
+    context_stack::{DrawContext, EventContext, LayoutContext, UpdateContext},
     element::{Element, ElementPointer},
     util::Mixable,
 };

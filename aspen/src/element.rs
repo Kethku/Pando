@@ -1,9 +1,12 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    any::Any,
+    ops::{Deref, DerefMut},
+};
 
 use vello::kurbo::{Affine, Point, Rect, Size};
 
 use crate::{
-    context::{DrawContext, LayoutContext, UpdateContext},
+    context_stack::{Context, DrawContext, LayoutContext, UpdateContext},
     token::Token,
 };
 
@@ -11,6 +14,26 @@ pub trait Element {
     fn update(&mut self, _cx: &mut UpdateContext) {}
     fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size;
     fn draw(&self, _cx: &mut DrawContext) {}
+}
+
+impl<E: Element + ?Sized> Element for Box<E> {
+    fn update(&mut self, cx: &mut UpdateContext) {
+        let token = cx.token();
+        let mut cx = cx.child(*token);
+        self.as_mut().update(&mut cx)
+    }
+
+    fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size {
+        let token = cx.token();
+        let mut cx = cx.child(*token);
+        self.as_mut().layout(min, max, &mut cx)
+    }
+
+    fn draw(&self, cx: &mut DrawContext) {
+        let token = cx.token();
+        let mut cx = cx.child(*token);
+        self.as_ref().draw(&mut cx)
+    }
 }
 
 pub struct ElementPointer<E: Element> {
@@ -26,12 +49,19 @@ impl<E: Element> ElementPointer<E> {
         }
     }
 
+    pub fn map<R: Element>(self, map: impl FnOnce(E) -> R) -> ElementPointer<R> {
+        ElementPointer {
+            token: self.token,
+            element: map(self.element),
+        }
+    }
+
     pub fn token(&self) -> &Token {
         &self.token
     }
 
     pub fn update<'a>(&mut self, cx: &mut UpdateContext) {
-        let mut child_cx: UpdateContext = cx.child(self.token);
+        let mut child_cx = cx.child(self.token);
         self.element.update(&mut child_cx);
     }
 
@@ -46,7 +76,7 @@ impl<E: Element> ElementPointer<E> {
     }
 
     pub fn draw<'a>(&self, cx: &mut DrawContext) {
-        let mut child_cx = cx.child(&self.token);
+        let mut child_cx = cx.child(self.token);
 
         if !child_cx.any_in_progress_mouse_regions() {
             let window_region = Rect::from_origin_size(Point::ZERO, child_cx.window_size);
@@ -63,6 +93,28 @@ impl<E: Element> ElementPointer<E> {
         }
 
         self.element.draw(&mut child_cx);
+    }
+
+    pub fn with_context<'a, Result>(
+        &self,
+        cx: &Context,
+        callback: impl FnOnce(&Context) -> Result,
+    ) -> Result {
+        let cx = cx.child(self.token);
+        callback(&cx)
+    }
+
+    pub fn insert_state<State: Any>(self, state: State, cx: &Context) -> ElementPointer<E> {
+        self.with_context(cx, |cx| cx.insert_state(state));
+        self
+    }
+
+    pub fn with_state<'a, State: Any, Result>(
+        &self,
+        cx: &Context<'a>,
+        callback: impl FnOnce(&mut State) -> Result,
+    ) -> Result {
+        self.with_context(cx, |cx| cx.with_state(callback))
     }
 }
 
@@ -119,7 +171,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        context::{
+        context_stack::{
             Context, DrawContext, EventState, LayoutContext, MockContextEventLoop,
             MockContextWindow,
         },

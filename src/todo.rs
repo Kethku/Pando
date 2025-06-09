@@ -7,15 +7,15 @@ pub struct Todo {
 }
 
 impl Todo {
-    pub fn new(center: Point) -> ElementPointer<PinWrapper<Self>> {
-        ElementPointer::new(Self {
+    pub fn new() -> ElementPointer<Self> {
+        Self {
             editor: TextEditor::new(Brush::Solid(*FOREGROUND)).with_border(
                 10.,
                 Brush::Solid(*BACKGROUND5),
                 Brush::Solid(*BACKGROUND1),
             ),
-        })
-        .as_pinnable(center)
+        }
+        .into()
     }
 }
 
@@ -23,7 +23,7 @@ impl Element for Todo {
     fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size {
         self.editor
             .layout(min, max, cx)
-            .position(Affine::IDENTITY, cx)
+            .position(Affine::translate(Vec2::new(0., 0.)), cx)
     }
 
     fn draw(&self, cx: &mut DrawContext) {

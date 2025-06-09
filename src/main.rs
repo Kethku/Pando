@@ -60,5 +60,5 @@ use app::App;
 use aspen::runner::run;
 
 fn main() {
-    run(App::new())
+    run(|cx| App::new(cx))
 }

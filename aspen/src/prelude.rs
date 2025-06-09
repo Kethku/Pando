@@ -1,6 +1,8 @@
 pub use crate::{
     components::*,
-    context::{DrawContext, EventContext, LayoutContext, UpdateContext},
+    context_stack::{
+        AttachedContext, Context, DrawContext, EventContext, LayoutContext, UpdateContext,
+    },
     element::{Element, ElementPointer},
     mouse_region::MouseRegion,
     util::*,
