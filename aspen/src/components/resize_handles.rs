@@ -2,7 +2,7 @@ use vello::kurbo::{Affine, Size};
 use winit::window::{CursorIcon, ResizeDirection};
 
 use crate::{
-    context::{DrawContext, LayoutContext},
+    context_stack::{DrawContext, LayoutContext},
     element::{Element, ElementPointer},
     geometry::*,
 };
@@ -38,12 +38,14 @@ impl Element for ResizeHandles {
     }
 
     fn draw(&self, cx: &mut DrawContext) {
-        for handle in &self.edge_handles {
-            handle.draw(cx);
-        }
+        if !cx.is_maximized() {
+            for handle in &self.edge_handles {
+                handle.draw(cx);
+            }
 
-        for handle in &self.corner_handles {
-            handle.draw(cx);
+            for handle in &self.corner_handles {
+                handle.draw(cx);
+            }
         }
     }
 }

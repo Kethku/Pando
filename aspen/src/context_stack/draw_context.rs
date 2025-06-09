@@ -1,517 +1,25 @@
 use std::{
-    cell::RefCell,
     collections::{HashMap, HashSet},
-    ops::{Deref, DerefMut},
-    sync::Arc,
+    ops::Deref,
 };
 
-use mockall::*;
-use parley::{layout::PositionedLayoutItem, style::StyleProperty, Layout};
+use parley::{layout::PositionedLayoutItem, Layout};
 use vello::{
     kurbo::{Affine, BezPath, Line, Point, Rect, RoundedRect, Shape, Size, Stroke, Vec2},
     peniko::{BlendMode, Brush, Color, Fill},
     Scene,
 };
-use winit::{
-    event_loop::ActiveEventLoop,
-    window::{Cursor, CursorIcon, ResizeDirection, Window},
-};
+
+use super::AttachedContext;
 
 use crate::{
     element::{Element, ElementPointer},
     mouse_region::{MouseRegion, MouseRegionManager, RegionToken},
-    shaper::Shaper,
     token::Token,
 };
 
-pub struct EventState {
-    pub mouse_position: Option<Point>,
-    pub previous_mouse_position: Option<Point>,
-    pub window_size: Size,
-    pub mouse_down: bool,
-    pub right_mouse_down: bool,
-    pub was_mouse_down: bool,
-    pub was_right_mouse_down: bool,
-    pub scroll_delta: Vec2,
-}
-
-impl EventState {
-    pub fn new() -> Self {
-        Self {
-            mouse_position: None,
-            previous_mouse_position: None,
-            window_size: Size::new(0., 0.),
-            mouse_down: false,
-            right_mouse_down: false,
-            was_mouse_down: false,
-            was_right_mouse_down: false,
-            scroll_delta: Vec2::new(0., 0.),
-        }
-    }
-
-    pub fn next_frame(&mut self) {
-        self.was_mouse_down = self.mouse_down;
-        self.was_right_mouse_down = self.right_mouse_down;
-        self.previous_mouse_position = self.mouse_position;
-        self.scroll_delta = Vec2::new(0., 0.);
-    }
-
-    pub fn mouse_down(&self) -> bool {
-        self.mouse_down
-    }
-
-    pub fn right_mouse_down(&self) -> bool {
-        self.right_mouse_down
-    }
-
-    pub fn was_mouse_down(&self) -> bool {
-        self.was_mouse_down
-    }
-
-    pub fn was_right_mouse_down(&self) -> bool {
-        self.was_right_mouse_down
-    }
-
-    pub fn mouse_released(&self) -> bool {
-        !self.mouse_down && self.was_mouse_down
-    }
-
-    pub fn right_mouse_released(&self) -> bool {
-        !self.right_mouse_down && self.was_right_mouse_down
-    }
-
-    pub fn mouse_just_down(&self) -> bool {
-        self.mouse_down && !self.was_mouse_down
-    }
-
-    pub fn right_mouse_just_down(&self) -> bool {
-        self.right_mouse_down && !self.was_right_mouse_down
-    }
-
-    pub fn mouse_held(&self) -> bool {
-        self.mouse_down && self.was_mouse_down
-    }
-
-    pub fn right_mouse_held(&self) -> bool {
-        self.right_mouse_down && self.was_right_mouse_down
-    }
-
-    pub fn actual_mouse_position(&self) -> Option<Point> {
-        self.mouse_position
-    }
-
-    pub fn actual_previous_mouse_position(&self) -> Option<Point> {
-        self.previous_mouse_position
-    }
-
-    pub fn actual_mouse_delta(&self) -> Option<Vec2> {
-        self.mouse_position
-            .zip(self.previous_mouse_position)
-            .map(|(pos, prev)| pos - prev)
-    }
-
-    pub fn scroll_delta(&self) -> Vec2 {
-        self.scroll_delta
-    }
-
-    pub fn actual_window_size(&self) -> Size {
-        self.window_size
-    }
-
-    pub fn actual_window_rect(&self) -> Rect {
-        Rect::from_origin_size(Point::new(0., 0.), self.window_size)
-    }
-}
-
-pub struct Context<'a> {
-    event_state: &'a EventState,
-    event_loop: &'a dyn ContextEventLoop,
-    window: Arc<dyn ContextWindow>,
-    shaper: &'a RefCell<Shaper>,
-    default_text_styles: Vec<StyleProperty<'static, Brush>>,
-    element_token: Token,
-}
-
-impl<'a> Deref for Context<'a> {
-    type Target = EventState;
-
-    fn deref(&self) -> &Self::Target {
-        self.event_state
-    }
-}
-
-impl<'a> Context<'a> {
-    pub fn new(
-        event_state: &'a EventState,
-        event_loop: &'a dyn ContextEventLoop,
-        window: Arc<dyn ContextWindow>,
-        shaper: &'a RefCell<Shaper>,
-        element_token: Token,
-    ) -> Context<'a> {
-        Context {
-            event_state,
-            event_loop,
-            window,
-            shaper,
-            default_text_styles: Vec::new(),
-            element_token,
-        }
-    }
-
-    pub fn close(&self) {
-        self.event_loop.exit();
-    }
-
-    pub fn toggle_maximized(&self) {
-        self.window.set_maximized(!self.window.is_maximized());
-    }
-
-    pub fn is_maximized(&self) -> bool {
-        self.window.is_maximized()
-    }
-
-    pub fn minimize(&self) {
-        self.window.set_minimized(true);
-    }
-
-    pub fn is_minimized(&self) -> bool {
-        self.window.is_minimized().unwrap_or_default()
-    }
-
-    pub fn drag_window(&self) {
-        self.window.drag_window().expect("Could not drag window");
-    }
-
-    pub fn drag_resize_window(&self, direction: ResizeDirection) {
-        self.window
-            .drag_resize_window(direction)
-            .expect("Could not drag resize window");
-    }
-
-    pub fn set_cursor(&self, icon: CursorIcon) {
-        self.window.set_cursor(Cursor::Icon(icon));
-    }
-
-    pub fn push_default_text_style(&mut self, style: StyleProperty<'static, Brush>) {
-        self.default_text_styles.push(style);
-    }
-
-    pub fn clear_default_text_styles(&mut self) {
-        self.default_text_styles.clear();
-    }
-
-    pub fn layout(&mut self, text: &str) -> Layout<Brush> {
-        self.shaper
-            .borrow_mut()
-            .layout(text, &self.default_text_styles)
-    }
-
-    pub fn layout_within(&mut self, text: &str, max_advance: f32) -> Layout<Brush> {
-        self.shaper
-            .borrow_mut()
-            .layout_within(text, max_advance, &self.default_text_styles)
-    }
-
-    pub fn token(&self) -> &Token {
-        &self.element_token
-    }
-
-    pub fn child<'b>(&self, element_token: Token) -> Context<'b>
-    where
-        'a: 'b,
-    {
-        Context {
-            event_state: self.event_state,
-            event_loop: self.event_loop,
-            window: self.window.clone(),
-            shaper: self.shaper,
-            default_text_styles: self.default_text_styles.clone(),
-            element_token,
-        }
-    }
-}
-
-#[automock]
-pub trait ContextEventLoop {
-    fn exit(&self);
-}
-
-impl ContextEventLoop for ActiveEventLoop {
-    fn exit(&self) {
-        self.exit();
-    }
-}
-
-#[automock]
-pub trait ContextWindow {
-    fn set_maximized(&self, maximized: bool);
-    fn is_maximized(&self) -> bool;
-    fn set_minimized(&self, minimized: bool);
-    fn is_minimized(&self) -> Option<bool>;
-    fn drag_window(&self) -> Result<(), String>;
-    fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), String>;
-    fn set_cursor(&self, cursor: Cursor);
-    fn request_redraw(&self);
-}
-
-impl ContextWindow for Window {
-    fn set_maximized(&self, maximized: bool) {
-        self.set_maximized(maximized);
-    }
-
-    fn is_maximized(&self) -> bool {
-        self.is_maximized()
-    }
-
-    fn set_minimized(&self, minimized: bool) {
-        self.set_minimized(minimized);
-    }
-
-    fn is_minimized(&self) -> Option<bool> {
-        self.is_minimized()
-    }
-
-    fn drag_window(&self) -> Result<(), String> {
-        self.drag_window().map_err(|e| e.to_string())
-    }
-
-    fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), String> {
-        self.drag_resize_window(direction)
-            .map_err(|e| e.to_string())
-    }
-
-    fn set_cursor(&self, cursor: Cursor) {
-        self.set_cursor(cursor);
-    }
-
-    fn request_redraw(&self) {
-        self.request_redraw();
-    }
-}
-
-pub struct EventContext<'a> {
-    context: &'a Context<'a>,
-    redraw_requested: &'a mut bool,
-    regions: &'a HashMap<Token, (Affine, Size)>,
-    // Used when a drag just crossed the min threshold to report as a drag so that the dragger can
-    // get a delta value that includes the threshold distance for the first mouse delta.
-    //
-    // Note: this presents some slight weirdness because mouse_delta will be larger than the actual
-    // computed delta but so be it.
-    pub(crate) delta_correction: Option<Vec2>,
-    pub(crate) transform: Affine,
-}
-
-impl<'a> Deref for EventContext<'a> {
-    type Target = Context<'a>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.context
-    }
-}
-
-impl<'a> EventContext<'a> {
-    pub fn new(
-        context: &'a Context<'a>,
-        redraw_requested: &'a mut bool,
-        regions: &'a HashMap<Token, (Affine, Size)>,
-    ) -> EventContext<'a> {
-        EventContext {
-            context,
-            redraw_requested,
-            regions,
-            delta_correction: None,
-            transform: Affine::IDENTITY,
-        }
-    }
-
-    pub fn request_redraw(&mut self) {
-        *self.redraw_requested = true;
-    }
-
-    pub fn mouse_position(&self) -> Option<Point> {
-        self.actual_mouse_position()
-            .map(|pos| self.transform.inverse() * pos)
-    }
-
-    pub fn mouse_position_relative_to<Other: Element>(
-        &self,
-        other: &ElementPointer<Other>,
-    ) -> Option<Point> {
-        self.regions
-            .get(&other.token())
-            .map(|(transform, _)| {
-                self.actual_mouse_position()
-                    .map(|pos| transform.inverse() * pos)
-            })
-            .expect(&format!(
-                "Layout must not have been completed for this element before drawing: {:?}",
-                other.token()
-            ))
-    }
-
-    pub fn previous_mouse_position(&self) -> Option<Point> {
-        self.actual_previous_mouse_position()
-            .map(|pos| self.transform.inverse() * pos)
-    }
-
-    pub fn previous_mouse_position_relative_to<Other: Element>(
-        &self,
-        other: &ElementPointer<Other>,
-    ) -> Option<Point> {
-        self.regions
-            .get(&other.token())
-            .map(|(transform, _)| {
-                self.actual_previous_mouse_position()
-                    .map(|pos| transform.inverse() * pos)
-            })
-            .expect(&format!(
-                "Layout must not have been completed for this element before drawing: {:?}",
-                other.token()
-            ))
-    }
-
-    pub fn mouse_delta(&self) -> Option<Vec2> {
-        if let Some(delta) = self.delta_correction {
-            Some(delta)
-        } else {
-            self.mouse_position()
-                .zip(self.previous_mouse_position())
-                .map(|(pos, prev)| pos - prev)
-        }
-    }
-
-    pub fn mouse_delta_relative_to<Other: Element>(
-        &self,
-        other: &ElementPointer<Other>,
-    ) -> Option<Vec2> {
-        self.regions
-            .get(&other.token())
-            .map(|(transform, _)| {
-                self.actual_mouse_position()
-                    .zip(self.actual_previous_mouse_position())
-                    .map(|(pos, prev)| {
-                        let inverse = transform.inverse();
-                        inverse * pos - inverse * prev
-                    })
-            })
-            .expect(&format!(
-                "Layout must not have been completed for this element before drawing: {:?}",
-                other.token()
-            ))
-    }
-
-    pub fn window_bounding_box(&self) -> Rect {
-        self.transform
-            .inverse()
-            .transform_rect_bbox(self.actual_window_rect())
-    }
-}
-
-pub struct UpdateContext<'a> {
-    context: Context<'a>,
-    mouse_region_manager: &'a mut MouseRegionManager,
-    redraw_requested: &'a mut bool,
-}
-
-impl<'a> Deref for UpdateContext<'a> {
-    type Target = Context<'a>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.context
-    }
-}
-
-impl<'a> UpdateContext<'a> {
-    pub fn new(
-        context: Context<'a>,
-        mouse_region_manager: &'a mut MouseRegionManager,
-        redraw_requested: &'a mut bool,
-    ) -> UpdateContext<'a> {
-        UpdateContext {
-            context,
-            mouse_region_manager,
-            redraw_requested,
-        }
-    }
-
-    pub fn add_mouse_region(&mut self, mouse_region: MouseRegion) {
-        self.mouse_region_manager.add_region(mouse_region);
-    }
-
-    pub fn request_redraw(&mut self) {
-        *self.redraw_requested = true;
-    }
-
-    pub fn child<'b>(&'b mut self, element_token: Token) -> UpdateContext<'b>
-    where
-        'a: 'b,
-    {
-        let child_cx: Context<'b> = self.context.child(element_token);
-        UpdateContext {
-            context: child_cx,
-            mouse_region_manager: self.mouse_region_manager,
-            redraw_requested: self.redraw_requested,
-        }
-    }
-}
-
-pub struct LayoutContext<'a> {
-    context: Context<'a>,
-    regions: &'a mut HashMap<Token, (Affine, Size)>,
-    children: &'a mut HashMap<Token, HashSet<Token>>,
-}
-
-impl<'a> Deref for LayoutContext<'a> {
-    type Target = Context<'a>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.context
-    }
-}
-
-impl<'a> DerefMut for LayoutContext<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.context
-    }
-}
-
-impl<'a> LayoutContext<'a> {
-    pub fn new(
-        context: Context<'a>,
-        regions: &'a mut HashMap<Token, (Affine, Size)>,
-        children: &'a mut HashMap<Token, HashSet<Token>>,
-    ) -> LayoutContext<'a> {
-        LayoutContext {
-            context,
-            regions,
-            children,
-        }
-    }
-
-    pub fn add_region(&mut self, token: Token, transform: Affine, size: Size) {
-        self.regions.insert(token, (transform, size));
-    }
-
-    pub fn child<'b>(&'b mut self, token: Token) -> LayoutContext<'b>
-    where
-        'a: 'b,
-    {
-        self.children
-            .entry(*self.token())
-            .or_default()
-            .insert(token);
-        let child_cx: Context<'b> = self.context.child(token);
-        LayoutContext::<'b> {
-            context: child_cx,
-            regions: self.regions,
-            children: self.children,
-        }
-    }
-}
-
 pub struct DrawContext<'a> {
-    context: Context<'a>,
+    context: AttachedContext<'a>,
     mouse_region_manager: &'a mut MouseRegionManager,
     mouse_region_count: usize,
     child_lookup: &'a HashMap<Token, HashSet<Token>>,
@@ -530,7 +38,7 @@ pub struct DrawContext<'a> {
 }
 
 impl<'a> Deref for DrawContext<'a> {
-    type Target = Context<'a>;
+    type Target = AttachedContext<'a>;
 
     fn deref(&self) -> &Self::Target {
         &self.context
@@ -539,7 +47,7 @@ impl<'a> Deref for DrawContext<'a> {
 
 impl<'a> DrawContext<'a> {
     pub fn new(
-        context: Context<'a>,
+        context: AttachedContext<'a>,
         mouse_region_manager: &'a mut MouseRegionManager,
         child_lookup: &'a HashMap<Token, HashSet<Token>>,
         regions: &'a HashMap<Token, (Affine, Size)>,
@@ -873,10 +381,6 @@ impl<'a> DrawContext<'a> {
         ))
     }
 
-    pub fn request_redraw(&self) {
-        self.context.window.request_redraw();
-    }
-
     pub fn region(&self) -> Rect {
         self.regions
             .get(&self.context.token())
@@ -931,12 +435,12 @@ impl<'a> DrawContext<'a> {
         self.any_in_progress_mouse_regions_recursive(self.token())
     }
 
-    pub(crate) fn child<'b>(&'b mut self, token: &Token) -> DrawContext<'b>
+    pub(crate) fn child<'b>(&'b mut self, token: Token) -> DrawContext<'b>
     where
         'a: 'b,
     {
-        let element_transform = self.element_transform * self.transform_by_token(token);
-        let child_cx: Context<'b> = self.context.child(*token);
+        let element_transform = self.element_transform * self.transform_by_token(&token);
+        let child_cx: AttachedContext<'b> = self.context.child(token);
         DrawContext::<'b> {
             context: child_cx,
             mouse_region_manager: self.mouse_region_manager,

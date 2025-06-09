@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashSet, rc::Rc};
+use std::{collections::HashSet, ops::Deref};
 
 use ordered_float::OrderedFloat;
 use vello::{
@@ -7,38 +7,44 @@ use vello::{
 };
 
 use crate::{
-    context::{DrawContext, LayoutContext, UpdateContext},
+    context_stack::{Context, DrawContext, LayoutContext, UpdateContext},
     element::{Element, ElementPointer},
     util::*,
 };
 
 pub trait Pinnable: Element {
-    fn center(&self) -> Point;
+    fn center(&self, cx: &Context) -> Point;
 }
 
-pub struct Board<Child: Pinnable> {
+pub struct Board {
     draw_background: Box<dyn Fn(Rect, &mut DrawContext)>,
-    children: Vec<ElementPointer<Child>>,
-
-    center_cache: RefCell<Vec2>,
-    transform: Rc<RefCell<Affine>>,
+    children: Vec<ElementPointer<Box<dyn Pinnable>>>,
 }
 
-impl<Child: Pinnable> Board<Child> {
-    pub fn new(
+#[derive(Default)]
+pub struct BoardState {
+    transform: Affine,
+}
+
+impl Board {
+    pub fn new<'a>(
         transform: Affine,
         draw_background: impl Fn(Rect, &mut DrawContext) + 'static,
+        cx: &Context<'a>,
     ) -> ElementPointer<Self> {
         ElementPointer::new(Self {
             draw_background: Box::new(draw_background),
             children: Vec::new(),
-
-            center_cache: RefCell::new(Vec2::ZERO),
-            transform: Rc::new(RefCell::new(transform)),
         })
+        .insert_state(BoardState { transform }, cx)
     }
 
-    pub fn new_dotgrid(transform: Affine, background: Color, dots: Color) -> ElementPointer<Self> {
+    pub fn new_dotgrid<'a>(
+        transform: Affine,
+        background: Color,
+        dots: Color,
+        cx: &Context<'a>,
+    ) -> ElementPointer<Self> {
         let draw_background = move |bounds: Rect, cx: &mut DrawContext| {
             cx.set_fill_brush(Brush::Solid(background));
             cx.fill(&bounds);
@@ -89,19 +95,22 @@ impl<Child: Pinnable> Board<Child> {
             }
         };
 
-        Self::new(transform, draw_background)
+        Self::new(transform, draw_background, cx)
     }
 
-    pub fn add_child(&mut self, child: impl Into<ElementPointer<Child>>) {
-        self.children.push(child.into());
-    }
-
-    pub fn transform(&self) -> Affine {
-        *self.transform.borrow()
+    pub fn add_child(&mut self, child: ElementPointer<impl Pinnable + 'static>) {
+        self.children
+            .push(child.map(|element| Box::new(element) as Box<dyn Pinnable + 'static>));
     }
 }
 
-impl<Child: Pinnable> Element for Board<Child> {
+impl ElementPointer<Board> {
+    pub fn transform<'a>(&self, cx: &impl Deref<Target = Context<'a>>) -> Affine {
+        self.with_state(cx, |state: &mut BoardState| state.transform)
+    }
+}
+
+impl Element for Board {
     fn update(&mut self, cx: &mut UpdateContext) {
         for child in self.children.iter_mut() {
             child.update(cx);
@@ -109,11 +118,14 @@ impl<Child: Pinnable> Element for Board<Child> {
     }
 
     fn layout(&mut self, _min: Size, max: Size, cx: &mut LayoutContext) -> Size {
-        let transform = Affine::translate((max / 2.).to_vec2()) * self.transform();
+        let transform = cx.with_state(|state: &mut BoardState| {
+            Affine::translate((max / 2.).to_vec2()) * state.transform
+        });
         for child in self.children.iter_mut() {
             let result = child.layout(Size::ZERO, Size::INFINITY, cx);
-            let position = child.center() - result.size().to_vec2() / 2.;
-            result.position(transform * Affine::translate(position.to_vec2()), cx);
+            let position =
+                child.with_context(cx, |cx| child.center(cx)) - result.size().to_vec2() / 2.;
+            result.position(transform.then_translate(position.to_vec2()), cx);
         }
 
         max
@@ -122,29 +134,31 @@ impl<Child: Pinnable> Element for Board<Child> {
     fn draw(&self, cx: &mut DrawContext) {
         let region = cx.region();
         let center = region.center().to_vec2();
-        *self.center_cache.borrow_mut() = center;
         cx.mouse_region(region)
             .on_right_drag({
-                let transform = self.transform.clone();
-                move |cx| {
+                |cx| {
                     if let Some(delta) = cx.mouse_delta() {
-                        let mut transform = transform.borrow_mut();
-                        *transform = transform.then_translate(delta);
+                        cx.with_state(|state: &mut BoardState| {
+                            state.transform = state.transform.then_translate(delta);
+                        });
                         cx.request_redraw();
                     }
                 }
             })
             .on_scroll({
-                let transform = self.transform.clone();
                 move |cx| {
                     if let Some(pos) = cx.mouse_position() {
-                        let mut transform = transform.borrow_mut();
-                        let new_transform = transform
-                            .then_scale_about(1.0 + cx.scroll_delta().y / 100.0, pos - center);
+                        let new_transform = cx.with_state(|state: &mut BoardState| {
+                            state
+                                .transform
+                                .then_scale_about(1.0 + cx.scroll_delta().y / 100.0, pos - center)
+                        });
 
                         let test_length = new_transform.unskewed_scale().length() / 2.0f64.sqrt();
                         if test_length < 100. && test_length > 0.025 {
-                            *transform = new_transform;
+                            cx.with_state(|state: &mut BoardState| {
+                                state.transform = new_transform;
+                            });
                             cx.request_redraw();
                         }
                     }
@@ -155,7 +169,8 @@ impl<Child: Pinnable> Element for Board<Child> {
             .current_transform()
             .inverse()
             .transform_rect_bbox(Rect::from_origin_size(Point::ZERO, cx.window_size));
-        let adjusted_transform = Affine::translate(center) * self.transform();
+        let adjusted_transform =
+            cx.with_state(|state: &mut BoardState| Affine::translate(center) * state.transform);
         let inverse_transform = adjusted_transform.inverse();
         let background = inverse_transform
             .transform_rect_bbox(region)
@@ -176,30 +191,25 @@ impl<Child: Pinnable> Element for Board<Child> {
 
 pub struct PinWrapper<Child: Element> {
     child: ElementPointer<Child>,
-
     size: Option<Size>,
-    center: Rc<RefCell<Point>>,
 }
 
 impl<Child: Element> PinWrapper<Child> {
-    pub fn new(center: Point, child: ElementPointer<Child>) -> ElementPointer<Self> {
-        ElementPointer::new(Self {
-            child,
-            size: None,
-            center: Rc::new(RefCell::new(center)),
-        })
+    pub fn new(center: Point, child: ElementPointer<Child>, cx: &Context) -> ElementPointer<Self> {
+        ElementPointer::new(Self { child, size: None }).insert_state(center, cx)
     }
 
     pub fn new_sized(
         center: Point,
         size: Size,
         child: ElementPointer<Child>,
+        cx: &Context,
     ) -> ElementPointer<Self> {
         ElementPointer::new(Self {
             child,
             size: Some(size),
-            center: Rc::new(RefCell::new(center)),
         })
+        .insert_state(center, cx)
     }
 
     pub fn sized(mut this: ElementPointer<Self>, size: Size) -> ElementPointer<Self> {
@@ -227,11 +237,11 @@ impl<Child: Element> Element for PinWrapper<Child> {
 
     fn draw(&self, cx: &mut DrawContext) {
         cx.mouse_region(cx.region()).on_drag({
-            let center = self.center.clone();
             move |cx| {
                 if let Some(delta) = cx.mouse_delta() {
-                    let mut center = center.borrow_mut();
-                    *center += delta;
+                    cx.with_state(|center: &mut Point| {
+                        *center += delta;
+                    });
                     cx.request_redraw();
                 }
             }
@@ -242,17 +252,17 @@ impl<Child: Element> Element for PinWrapper<Child> {
 }
 
 impl<Child: Element> Pinnable for PinWrapper<Child> {
-    fn center(&self) -> Point {
-        *self.center.borrow()
+    fn center(&self, cx: &Context) -> Point {
+        cx.with_state(|center: &mut Point| *center)
     }
 }
 
 pub trait ElementPinExt<This: Element + Sized> {
-    fn as_pinnable(self, center: Point) -> ElementPointer<PinWrapper<This>>;
+    fn as_pinnable(self, center: Point, cx: &Context) -> ElementPointer<PinWrapper<This>>;
 }
 
 impl<This: Element + Sized> ElementPinExt<This> for ElementPointer<This> {
-    fn as_pinnable(self, center: Point) -> ElementPointer<PinWrapper<This>> {
-        PinWrapper::new(center, self)
+    fn as_pinnable(self, center: Point, cx: &Context) -> ElementPointer<PinWrapper<This>> {
+        PinWrapper::new(center, self, cx)
     }
 }

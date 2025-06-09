@@ -1,5 +1,5 @@
 use futures::executor::block_on;
-use std::{cell::RefCell, collections::HashMap, sync::Arc};
+use std::{any::Any, cell::RefCell, collections::HashMap, sync::Arc};
 
 use vello::{
     kurbo::{Affine, Point, Size, Vec2},
@@ -15,7 +15,9 @@ use winit::{
 };
 
 use crate::{
-    context::{Context, DrawContext, EventState, LayoutContext, UpdateContext},
+    context_stack::{
+        AttachedContext, Context, DrawContext, EventState, LayoutContext, UpdateContext,
+    },
     element::{Element, ElementPointer},
     mouse_region::MouseRegionManager,
     shaper::Shaper,
@@ -31,21 +33,36 @@ struct WinitApplicationHandler<A: Element> {
     shaper: RefCell<Shaper>,
 
     regions: RefCell<HashMap<Token, (Affine, Size)>>,
-    token: Token,
+    states: RefCell<HashMap<Token, Box<dyn Any>>>,
+    base_token: Token,
     force_redraw: bool,
 }
 
 impl<A: Element> WinitApplicationHandler<A> {
-    fn new(app: impl Into<ElementPointer<A>>) -> Self {
+    fn new<F>(app_constructor: F) -> Self
+    where
+        F: for<'a> FnOnce(&mut Context<'a>) -> ElementPointer<A>,
+    {
+        let event_state = EventState::new();
+        let shaper = RefCell::new(Shaper::new());
+        let states = RefCell::new(HashMap::new());
+        let base_token = Token::new::<Self>();
+        let app = {
+            let mut context = Context::new(&event_state, &shaper, &states, base_token);
+            let app = app_constructor(&mut context);
+            drop(context);
+            app
+        };
         WinitApplicationHandler {
             mouse_region_manager: RefCell::new(MouseRegionManager::new()),
-            app: RefCell::new(app.into()),
-            event_state: EventState::new(),
+            app: RefCell::new(app),
+            event_state,
             renderer: None,
-            shaper: RefCell::new(Shaper::new()),
+            shaper,
 
             regions: RefCell::new(HashMap::new()),
-            token: Token::new::<Self>(),
+            states,
+            base_token,
             force_redraw: false,
         }
     }
@@ -54,13 +71,16 @@ impl<A: Element> WinitApplicationHandler<A> {
         WinitRenderer::new(window).await
     }
 
-    fn context<'a>(&'a self, event_loop: &'a ActiveEventLoop) -> Context<'a> {
-        Context::new(
-            &self.event_state,
-            event_loop,
+    fn context<'a>(&'a self, event_loop: &'a ActiveEventLoop) -> AttachedContext<'a> {
+        AttachedContext::new(
+            Context::new(
+                &self.event_state,
+                &self.shaper,
+                &self.states,
+                self.base_token,
+            ),
             self.renderer.as_ref().unwrap().window.clone(),
-            &self.shaper,
-            self.token,
+            event_loop,
         )
     }
 
@@ -70,7 +90,7 @@ impl<A: Element> WinitApplicationHandler<A> {
         let mut regions = self.regions.borrow_mut();
 
         let mut redraw_requested =
-            mouse_region_manager.process_regions(&mut regions, &self.context(event_loop));
+            mouse_region_manager.process_regions(&mut regions, self.context(event_loop));
         {
             let mut update_context = UpdateContext::new(
                 self.context(event_loop),
@@ -203,10 +223,13 @@ impl<A: Element> ApplicationHandler for WinitApplicationHandler<A> {
     }
 }
 
-pub fn run<A: Element>(app: impl Into<ElementPointer<A>>) {
+pub fn run<A: Element, F>(app_constructor: F)
+where
+    F: for<'a> FnOnce(&mut Context<'a>) -> ElementPointer<A>,
+{
     let event_loop = EventLoop::new().expect("Could not create event loop");
     event_loop.set_control_flow(ControlFlow::Wait);
-    let mut application_handler = WinitApplicationHandler::new(app.into());
+    let mut application_handler = WinitApplicationHandler::new(app_constructor);
 
     event_loop.run_app(&mut application_handler).ok();
 }
