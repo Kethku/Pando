@@ -18,21 +18,15 @@ pub trait Element {
 
 impl<E: Element + ?Sized> Element for Box<E> {
     fn update(&mut self, cx: &mut UpdateContext) {
-        let token = cx.token();
-        let mut cx = cx.child(*token);
-        self.as_mut().update(&mut cx)
+        self.as_mut().update(cx)
     }
 
     fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size {
-        let token = cx.token();
-        let mut cx = cx.child(*token);
-        self.as_mut().layout(min, max, &mut cx)
+        self.as_mut().layout(min, max, cx)
     }
 
     fn draw(&self, cx: &mut DrawContext) {
-        let token = cx.token();
-        let mut cx = cx.child(*token);
-        self.as_ref().draw(&mut cx)
+        self.as_ref().draw(cx)
     }
 }
 
