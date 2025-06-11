@@ -58,4 +58,15 @@ impl Element for App {
         self.window_buttons.draw(cx);
         self.resize_handles.draw(cx);
     }
+
+    fn children(&self) -> Vec<Token> {
+        vec![
+            self.board.tokens(),
+            self.window_buttons.tokens(),
+            self.resize_handles.tokens(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
+    }
 }

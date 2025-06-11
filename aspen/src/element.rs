@@ -14,6 +14,9 @@ pub trait Element {
     fn update(&mut self, _cx: &mut UpdateContext) {}
     fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size;
     fn draw(&self, _cx: &mut DrawContext) {}
+    fn children(&self) -> Vec<Token> {
+        Vec::new()
+    }
 }
 
 impl<E: Element + ?Sized> Element for Box<E> {
@@ -27,6 +30,10 @@ impl<E: Element + ?Sized> Element for Box<E> {
 
     fn draw(&self, cx: &mut DrawContext) {
         self.as_ref().draw(cx)
+    }
+
+    fn children(&self) -> Vec<Token> {
+        self.as_ref().children()
     }
 }
 
@@ -50,18 +57,18 @@ impl<E: Element> ElementPointer<E> {
         }
     }
 
-    pub fn token(&self) -> &Token {
-        &self.token
+    pub fn token(&self) -> Token {
+        self.token
     }
 
     pub fn update<'a>(&mut self, cx: &mut UpdateContext) {
-        let mut child_cx = cx.child(self.token);
+        let mut child_cx = cx.child(self.token, self.children());
         self.element.update(&mut child_cx);
     }
 
     #[must_use]
     pub fn layout<'a>(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> LayoutResult {
-        let mut child_cx = cx.child(self.token);
+        let mut child_cx = cx.child(self.token, self.children());
         let size = self.element.layout(min, max, &mut child_cx).clamp(min, max);
         LayoutResult {
             size,
@@ -70,7 +77,7 @@ impl<E: Element> ElementPointer<E> {
     }
 
     pub fn draw<'a>(&self, cx: &mut DrawContext) {
-        let mut child_cx = cx.child(self.token);
+        let mut child_cx = cx.child(self.token, self.children());
 
         if !child_cx.any_in_progress_mouse_regions() {
             let window_region = Rect::from_origin_size(Point::ZERO, child_cx.window_size);
@@ -89,12 +96,25 @@ impl<E: Element> ElementPointer<E> {
         self.element.draw(&mut child_cx);
     }
 
+    // Returns a list of tokens associated with this element. Includes the element's token and all
+    // of it's children's tokens.
+    pub fn tokens(&self) -> Vec<Token> {
+        let mut tokens = vec![self.token];
+        tokens.extend(self.element.children());
+        tokens
+    }
+
+    // Returns the tokens of all the children of this element but not this element's token.
+    pub fn children(&self) -> Vec<Token> {
+        self.element.children()
+    }
+
     pub fn with_context<'a, Result>(
         &self,
         cx: &Context,
         callback: impl FnOnce(&Context) -> Result,
     ) -> Result {
-        let cx = cx.child(self.token);
+        let cx = cx.child(self.token, self.children());
         callback(&cx)
     }
 

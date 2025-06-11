@@ -44,17 +44,21 @@ impl<'a> LayoutContext<'a> {
 
     pub fn add_region(&mut self, element_token: Token, transform: Affine, size: Size) {
         self.children
-            .entry(*self.token())
+            .entry(self.token())
             .or_default()
             .insert(element_token);
         self.regions.insert(element_token, (transform, size));
     }
 
-    pub fn child<'b>(&'b mut self, token: Token) -> LayoutContext<'b>
+    pub fn child<'b>(
+        &'b mut self,
+        element_token: Token,
+        element_children: Vec<Token>,
+    ) -> LayoutContext<'b>
     where
         'a: 'b,
     {
-        let child_cx: AttachedContext<'b> = self.context.child(token);
+        let child_cx: AttachedContext<'b> = self.context.child(element_token, element_children);
         LayoutContext::<'b> {
             context: child_cx,
             regions: self.regions,

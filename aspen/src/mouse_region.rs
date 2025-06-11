@@ -22,6 +22,7 @@ pub struct RegionToken {
 
 pub struct MouseRegion {
     pub(crate) token: RegionToken,
+    pub(crate) element_children: Vec<Token>,
     region: BezPath,
     pub(crate) transform: Affine,
     icon: Option<CursorIcon>,
@@ -42,6 +43,7 @@ pub struct MouseRegion {
 impl MouseRegion {
     pub fn new(
         token: RegionToken,
+        element_children: Vec<Token>,
         shape: impl Shape,
         transform: Affine,
         clip_stack: Vec<BezPath>,
@@ -49,6 +51,7 @@ impl MouseRegion {
         MouseRegion {
             region: transform * shape.to_path(0.1),
             token,
+            element_children,
             transform,
             clip_stack,
             icon: None,
@@ -167,18 +170,18 @@ impl MouseRegionManager {
 
     /// Indicates if any mouse regions associated with this Token are currently tracked. Useful to
     /// continue rendering even if a region would normally be culled.
-    pub fn token_currently_tracked(&self, token: &Token) -> bool {
+    pub fn token_currently_tracked(&self, token: Token) -> bool {
         self.current_dragger
-            .map_or(false, |region_token| &region_token.token == token)
+            .map_or(false, |region_token| region_token.token == token)
             || self
                 .current_right_dragger
-                .map_or(false, |region_token| &region_token.token == token)
+                .map_or(false, |region_token| region_token.token == token)
             || self
                 .current_clicker
-                .map_or(false, |region_token| &region_token.token == token)
+                .map_or(false, |region_token| region_token.token == token)
             || self
                 .current_right_clicker
-                .map_or(false, |region_token| &region_token.token == token)
+                .map_or(false, |region_token| region_token.token == token)
     }
 
     pub fn process_regions(

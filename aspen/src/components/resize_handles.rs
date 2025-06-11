@@ -5,6 +5,7 @@ use crate::{
     context_stack::{DrawContext, LayoutContext},
     element::{Element, ElementPointer},
     geometry::*,
+    token::Token,
 };
 
 const EDGE_DEPTH: f64 = 8.;
@@ -47,6 +48,13 @@ impl Element for ResizeHandles {
                 handle.draw(cx);
             }
         }
+    }
+
+    fn children(&self) -> Vec<Token> {
+        let mut children = Vec::with_capacity(8);
+        children.extend(self.edge_handles.iter().map(|h| h.tokens()));
+        children.extend(self.corner_handles.iter().map(|h| h.tokens()));
+        children.into_iter().flatten().collect()
     }
 }
 

@@ -2,13 +2,14 @@ use std::{collections::HashSet, ops::Deref};
 
 use ordered_float::OrderedFloat;
 use vello::{
-    kurbo::{Affine, Circle, Point, Rect, Size, Vec2},
+    kurbo::{Affine, Circle, Point, Rect, Size},
     peniko::{Brush, Color},
 };
 
 use crate::{
     context_stack::{Context, DrawContext, LayoutContext, UpdateContext},
     element::{Element, ElementPointer},
+    token::Token,
     util::*,
 };
 
@@ -135,32 +136,29 @@ impl Element for Board {
         let region = cx.region();
         let center = region.center().to_vec2();
         cx.mouse_region(region)
-            .on_right_drag({
-                |cx| {
-                    if let Some(delta) = cx.mouse_delta() {
-                        cx.with_state(|state: &mut BoardState| {
-                            state.transform = state.transform.then_translate(delta);
-                        });
-                        cx.request_redraw();
-                    }
+            .on_down(|cx| cx.focus())
+            .on_right_drag(|cx| {
+                if let Some(delta) = cx.mouse_delta() {
+                    cx.with_state(|state: &mut BoardState| {
+                        state.transform = state.transform.then_translate(delta);
+                    });
+                    cx.request_redraw();
                 }
             })
-            .on_scroll({
-                move |cx| {
-                    if let Some(pos) = cx.mouse_position() {
-                        let new_transform = cx.with_state(|state: &mut BoardState| {
-                            state
-                                .transform
-                                .then_scale_about(1.0 + cx.scroll_delta().y / 100.0, pos - center)
-                        });
+            .on_scroll(move |cx| {
+                if let Some(pos) = cx.mouse_position() {
+                    let new_transform = cx.with_state(|state: &mut BoardState| {
+                        state
+                            .transform
+                            .then_scale_about(1.0 + cx.scroll_delta().y / 100.0, pos - center)
+                    });
 
-                        let test_length = new_transform.unskewed_scale().length() / 2.0f64.sqrt();
-                        if test_length < 100. && test_length > 0.025 {
-                            cx.with_state(|state: &mut BoardState| {
-                                state.transform = new_transform;
-                            });
-                            cx.request_redraw();
-                        }
+                    let test_length = new_transform.unskewed_scale().length() / 2.0f64.sqrt();
+                    if test_length < 100. && test_length > 0.025 {
+                        cx.with_state(|state: &mut BoardState| {
+                            state.transform = new_transform;
+                        });
+                        cx.request_redraw();
                     }
                 }
             });
@@ -186,6 +184,10 @@ impl Element for Board {
         }
 
         cx.pop_layer();
+    }
+
+    fn children(&self) -> Vec<Token> {
+        self.children.iter().map(|c| c.tokens()).flatten().collect()
     }
 }
 

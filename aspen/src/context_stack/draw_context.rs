@@ -368,13 +368,14 @@ impl<'a> DrawContext<'a> {
     pub fn mouse_region(&mut self, region: impl Shape) -> &mut MouseRegion {
         self.mouse_region_manager.add_region(MouseRegion::new(
             RegionToken {
-                token: *self.context.token(),
+                token: self.context.token(),
                 index: {
                     let index = self.mouse_region_count;
                     self.mouse_region_count += 1;
                     index
                 },
             },
+            self.children().clone(),
             region,
             self.current_transform(),
             self.clip_stack.clone(),
@@ -404,9 +405,9 @@ impl<'a> DrawContext<'a> {
         self.transform_by_token(other.token())
     }
 
-    fn transform_by_token(&self, other_token: &Token) -> Affine {
+    fn transform_by_token(&self, other_token: Token) -> Affine {
         self.regions
-            .get(other_token)
+            .get(&other_token)
             .map(|(transform, _)| *transform)
             .expect(&format!(
                 "Layout must not have been completed for this element before drawing: {:?}",
@@ -414,14 +415,14 @@ impl<'a> DrawContext<'a> {
             ))
     }
 
-    fn any_in_progress_mouse_regions_recursive(&self, token: &Token) -> bool {
+    fn any_in_progress_mouse_regions_recursive(&self, token: Token) -> bool {
         if self.mouse_region_manager.token_currently_tracked(token) {
             return true;
         }
 
-        if let Some(children) = self.child_lookup.get(token) {
+        if let Some(children) = self.child_lookup.get(&token) {
             for token in children {
-                if self.any_in_progress_mouse_regions_recursive(token) {
+                if self.any_in_progress_mouse_regions_recursive(*token) {
                     return true;
                 }
             }
@@ -435,12 +436,16 @@ impl<'a> DrawContext<'a> {
         self.any_in_progress_mouse_regions_recursive(self.token())
     }
 
-    pub(crate) fn child<'b>(&'b mut self, token: Token) -> DrawContext<'b>
+    pub(crate) fn child<'b>(
+        &'b mut self,
+        element_token: Token,
+        element_children: Vec<Token>,
+    ) -> DrawContext<'b>
     where
         'a: 'b,
     {
-        let element_transform = self.element_transform * self.transform_by_token(&token);
-        let child_cx: AttachedContext<'b> = self.context.child(token);
+        let element_transform = self.element_transform * self.transform_by_token(element_token);
+        let child_cx: AttachedContext<'b> = self.context.child(element_token, element_children);
         DrawContext::<'b> {
             context: child_cx,
             mouse_region_manager: self.mouse_region_manager,

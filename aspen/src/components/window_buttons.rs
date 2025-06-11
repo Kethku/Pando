@@ -6,6 +6,7 @@ use vello::{
 use crate::{
     context_stack::{DrawContext, LayoutContext, UpdateContext},
     element::{Element, ElementPointer},
+    token::Token,
     util::{PointExt, RectExt},
 };
 
@@ -152,5 +153,16 @@ impl Element for WindowButtons {
         self.close.draw(cx);
         self.maximize.draw(cx);
         self.minimize.draw(cx);
+    }
+
+    fn children(&self) -> Vec<Token> {
+        vec![
+            self.close.tokens(),
+            self.maximize.tokens(),
+            self.minimize.tokens(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
     }
 }

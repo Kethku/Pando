@@ -42,11 +42,15 @@ impl<'a> UpdateContext<'a> {
         *self.redraw_requested = true;
     }
 
-    pub fn child<'b>(&'b mut self, element_token: Token) -> UpdateContext<'b>
+    pub fn child<'b>(
+        &'b mut self,
+        element_token: Token,
+        element_children: Vec<Token>,
+    ) -> UpdateContext<'b>
     where
         'a: 'b,
     {
-        let child_cx: AttachedContext<'b> = self.context.child(element_token);
+        let child_cx: AttachedContext<'b> = self.context.child(element_token, element_children);
         UpdateContext {
             context: child_cx,
             mouse_region_manager: self.mouse_region_manager,

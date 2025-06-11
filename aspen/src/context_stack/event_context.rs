@@ -129,7 +129,9 @@ impl<'a> EventContext<'a> {
     }
 
     pub fn for_region<'b>(&'b mut self, region: &MouseRegion) -> EventContext<'b> {
-        let child_cx: AttachedContext<'b> = self.context.child(region.token.token);
+        let child_cx: AttachedContext<'b> = self
+            .context
+            .child(region.token.token, region.element_children.clone());
         EventContext {
             context: child_cx,
 
@@ -138,5 +140,10 @@ impl<'a> EventContext<'a> {
             delta_correction: self.delta_correction,
             transform: region.transform,
         }
+    }
+
+    pub fn focus(&mut self) {
+        self.context.focus();
+        self.request_redraw();
     }
 }

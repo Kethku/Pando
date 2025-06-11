@@ -84,8 +84,12 @@ impl<'a> AttachedContext<'a> {
         self.window.request_redraw();
     }
 
-    pub fn child<'b>(&'b mut self, element_token: Token) -> AttachedContext<'b> {
-        let child_cx: Context<'b> = self.context.child(element_token);
+    pub fn child<'b>(
+        &'b mut self,
+        element_token: Token,
+        element_children: Vec<Token>,
+    ) -> AttachedContext<'b> {
+        let child_cx: Context<'b> = self.context.child(element_token, element_children);
         AttachedContext {
             context: child_cx,
             window: self.window.clone(),

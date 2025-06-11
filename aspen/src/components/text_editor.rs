@@ -1,4 +1,11 @@
-use parley::{style::StyleProperty, Layout};
+use parley::{
+    layout::{
+        cursor::{Cursor, Selection},
+        Alignment,
+    },
+    style::StyleProperty,
+    Layout,
+};
 use vello::{kurbo::Size, peniko::Brush};
 
 use crate::{
@@ -6,10 +13,32 @@ use crate::{
     element::{Element, ElementPointer},
 };
 
+/// Opaque representation of a generation.
+///
+/// Obtained from [`PlainEditor::generation`].
+// Overflow handling: the generations are only compared,
+// so wrapping is fine. This could only fail if exactly
+// `u32::MAX` generations happen between drawing
+// operations. This is implausible and so can be ignored.
+#[derive(PartialEq, Eq, Default, Clone, Copy)]
+pub struct Generation(u32);
+
+impl Generation {
+    /// Make it not what it currently is.
+    pub(crate) fn nudge(&mut self) {
+        self.0 = self.0.wrapping_add(1);
+    }
+}
+
 pub struct TextEditor {
     text: String,
-    foreground: Brush,
     layout: Option<Layout<Brush>>,
+    foreground: Brush,
+    selection: Selection,
+    width: Option<f64>,
+    layout_dirty: bool,
+    alignment: Alignment,
+    generation: Generation,
 }
 
 impl TextEditor {
@@ -18,8 +47,13 @@ impl TextEditor {
 
         ElementPointer::new(Self {
             text,
-            foreground,
             layout: None,
+            foreground,
+            selection: Default::default(),
+            width: None,
+            layout_dirty: true,
+            alignment: Alignment::Start,
+            generation: Generation(1),
         })
     }
 }
@@ -39,6 +73,8 @@ impl Element for TextEditor {
     }
 
     fn draw(&self, cx: &mut DrawContext) {
+        cx.mouse_region(cx.region()).on_click(|cx| cx.focus());
+
         let top_left = cx.region().origin();
         if let Some(layout) = &self.layout {
             cx.draw_layout_at(layout, top_left);

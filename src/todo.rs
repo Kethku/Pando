@@ -20,6 +20,14 @@ impl Todo {
 }
 
 impl Element for Todo {
+    fn update(&mut self, cx: &mut UpdateContext) {
+        self.editor.fill = if cx.is_focused() {
+            Brush::Solid(*BACKGROUND4)
+        } else {
+            Brush::Solid(*BACKGROUND5)
+        }
+    }
+
     fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size {
         self.editor
             .layout(min, max, cx)
@@ -28,5 +36,9 @@ impl Element for Todo {
 
     fn draw(&self, cx: &mut DrawContext) {
         self.editor.draw(cx);
+    }
+
+    fn children(&self) -> Vec<Token> {
+        self.editor.tokens()
     }
 }

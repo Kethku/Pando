@@ -6,17 +6,18 @@ use vello::{
 use crate::{
     context_stack::{DrawContext, LayoutContext, UpdateContext},
     element::{Element, ElementPointer},
+    token::Token,
 };
 
 pub struct Border<Child: Element> {
-    child: ElementPointer<Child>,
+    pub child: ElementPointer<Child>,
 
-    padding: f64,
-    stroke: Brush,
-    fill: Brush,
-    thickness: f64,
-    radius: f64,
-    background_separation: f64,
+    pub padding: f64,
+    pub stroke: Brush,
+    pub fill: Brush,
+    pub thickness: f64,
+    pub radius: f64,
+    pub background_separation: f64,
 }
 
 impl<Child: Element> Border<Child> {
@@ -89,6 +90,10 @@ impl<Child: Element> Element for Border<Child> {
         cx.stroked_fill(&region);
 
         self.child.draw(cx);
+    }
+
+    fn children(&self) -> Vec<Token> {
+        self.child.tokens()
     }
 }
 

@@ -34,6 +34,7 @@ struct WinitApplicationHandler<A: Element> {
 
     regions: RefCell<HashMap<Token, (Affine, Size)>>,
     states: RefCell<HashMap<Token, Box<dyn Any>>>,
+    focused_element: RefCell<Option<Token>>,
     base_token: Token,
     force_redraw: bool,
 }
@@ -46,11 +47,18 @@ impl<A: Element> WinitApplicationHandler<A> {
         let event_state = EventState::new();
         let shaper = RefCell::new(Shaper::new());
         let states = RefCell::new(HashMap::new());
+        let focused_element = RefCell::new(None);
         let base_token = Token::new::<Self>();
         let app = {
-            let mut context = Context::new(&event_state, &shaper, &states, base_token);
+            let mut context = Context::new(
+                &event_state,
+                &shaper,
+                &states,
+                &focused_element,
+                base_token,
+                Vec::new(),
+            );
             let app = app_constructor(&mut context);
-            drop(context);
             app
         };
         WinitApplicationHandler {
@@ -62,6 +70,7 @@ impl<A: Element> WinitApplicationHandler<A> {
 
             regions: RefCell::new(HashMap::new()),
             states,
+            focused_element,
             base_token,
             force_redraw: false,
         }
@@ -71,13 +80,19 @@ impl<A: Element> WinitApplicationHandler<A> {
         WinitRenderer::new(window).await
     }
 
-    fn context<'a>(&'a self, event_loop: &'a ActiveEventLoop) -> AttachedContext<'a> {
+    fn context<'a>(
+        &'a self,
+        event_loop: &'a ActiveEventLoop,
+        app_tokens: Vec<Token>,
+    ) -> AttachedContext<'a> {
         AttachedContext::new(
             Context::new(
                 &self.event_state,
                 &self.shaper,
                 &self.states,
+                &self.focused_element,
                 self.base_token,
+                app_tokens,
             ),
             self.renderer.as_ref().unwrap().window.clone(),
             event_loop,
@@ -87,13 +102,14 @@ impl<A: Element> WinitApplicationHandler<A> {
     fn draw_frame(&mut self, event_loop: &ActiveEventLoop) {
         let mut mouse_region_manager = self.mouse_region_manager.borrow_mut();
         let mut app = self.app.borrow_mut();
+        let app_tokens = app.tokens();
         let mut regions = self.regions.borrow_mut();
 
-        let mut redraw_requested =
-            mouse_region_manager.process_regions(&mut regions, self.context(event_loop));
+        let mut redraw_requested = mouse_region_manager
+            .process_regions(&mut regions, self.context(event_loop, app_tokens.clone()));
         {
             let mut update_context = UpdateContext::new(
-                self.context(event_loop),
+                self.context(event_loop, app_tokens.clone()),
                 &mut mouse_region_manager,
                 &mut redraw_requested,
             );
@@ -103,8 +119,11 @@ impl<A: Element> WinitApplicationHandler<A> {
         if redraw_requested || self.force_redraw {
             let mut child_lookup = HashMap::new();
             {
-                let mut layout_context =
-                    LayoutContext::new(self.context(event_loop), &mut regions, &mut child_lookup);
+                let mut layout_context = LayoutContext::new(
+                    self.context(event_loop, app_tokens.clone()),
+                    &mut regions,
+                    &mut child_lookup,
+                );
                 let result = app.layout(
                     self.event_state.window_size,
                     self.event_state.window_size,
@@ -116,7 +135,7 @@ impl<A: Element> WinitApplicationHandler<A> {
             mouse_region_manager.clear_regions();
             let mut scene = Scene::new();
             let mut draw_context = DrawContext::new(
-                self.context(event_loop),
+                self.context(event_loop, app_tokens.clone()),
                 &mut mouse_region_manager,
                 &child_lookup,
                 &regions,
@@ -147,7 +166,23 @@ impl<A: Element> ApplicationHandler for WinitApplicationHandler<A> {
         event: WindowEvent,
     ) {
         match event {
+            // Window Specific Events
             WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::RedrawRequested => {
+                self.draw_frame(event_loop);
+            }
+            WindowEvent::Resized(new_size) => {
+                self.renderer
+                    .as_mut()
+                    .unwrap()
+                    .resize(new_size.width, new_size.height);
+                self.event_state.window_size =
+                    Size::new(new_size.width as f64, new_size.height as f64);
+                self.force_redraw = true;
+                self.renderer.as_ref().unwrap().window.request_redraw();
+            }
+
+            // Mouse Specific Events
             WindowEvent::CursorMoved { position, .. } => {
                 self.event_state.mouse_position = Some(Point::new(position.x, position.y));
                 self.renderer.as_ref().unwrap().window.request_redraw();
@@ -184,17 +219,14 @@ impl<A: Element> ApplicationHandler for WinitApplicationHandler<A> {
 
                 self.renderer.as_ref().unwrap().window.request_redraw();
             }
-            WindowEvent::RedrawRequested => {
-                self.draw_frame(event_loop);
+
+            // Keyboard Specific Events
+            WindowEvent::ModifiersChanged(modifiers) => {
+                self.event_state.modifiers = modifiers.into();
+                self.renderer.as_ref().unwrap().window.request_redraw();
             }
-            WindowEvent::Resized(new_size) => {
-                self.renderer
-                    .as_mut()
-                    .unwrap()
-                    .resize(new_size.width, new_size.height);
-                self.event_state.window_size =
-                    Size::new(new_size.width as f64, new_size.height as f64);
-                self.force_redraw = true;
+            WindowEvent::KeyboardInput { event, .. } => {
+                self.event_state.key_events.push(event.clone());
                 self.renderer.as_ref().unwrap().window.request_redraw();
             }
             _ => {}

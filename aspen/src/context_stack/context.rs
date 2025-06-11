@@ -1,21 +1,20 @@
-use std::{
-    any::Any, cell::RefCell, collections::HashMap, marker::PhantomData, ops::Deref, sync::Arc,
-};
+use std::{any::Any, cell::RefCell, collections::HashMap, ops::Deref};
 
-use mockall::*;
 use parley::{style::StyleProperty, Layout};
 use vello::peniko::Brush;
 
 use super::EventState;
 
-use crate::{element::Element, shaper::Shaper, token::Token};
+use crate::{shaper::Shaper, token::Token};
 
 pub struct Context<'a> {
     event_state: &'a EventState,
     shaper: &'a RefCell<Shaper>,
-    states: &'a RefCell<HashMap<Token, Box<dyn Any>>>,
     default_text_styles: Vec<StyleProperty<'static, Brush>>,
+    states: &'a RefCell<HashMap<Token, Box<dyn Any>>>,
+    focused_element: &'a RefCell<Option<Token>>,
     element_token: Token,
+    element_children: Vec<Token>,
 }
 
 impl<'a> Deref for Context<'a> {
@@ -31,14 +30,18 @@ impl<'a> Context<'a> {
         event_state: &'a EventState,
         shaper: &'a RefCell<Shaper>,
         states: &'a RefCell<HashMap<Token, Box<dyn Any>>>,
+        focused_element: &'a RefCell<Option<Token>>,
         element_token: Token,
+        element_children: Vec<Token>,
     ) -> Context<'a> {
         Context {
             event_state,
             shaper,
-            states,
             default_text_styles: Vec::new(),
+            states,
+            focused_element,
             element_token,
+            element_children,
         }
     }
 
@@ -84,11 +87,40 @@ impl<'a> Context<'a> {
         callback(state)
     }
 
-    pub fn token(&self) -> &Token {
-        &self.element_token
+    pub fn is_directly_focused(&self) -> bool {
+        self.focused_element
+            .borrow()
+            .as_ref()
+            .map_or(false, |token| token == &self.element_token)
     }
 
-    pub fn child<'b>(&self, element_token: Token) -> Context<'b>
+    pub fn is_focused(&self) -> bool {
+        self.focused_element
+            .borrow()
+            .as_ref()
+            .map_or(false, |token| self.tokens().contains(token))
+    }
+
+    pub fn focus(&self) {
+        let mut focused_element = self.focused_element.borrow_mut();
+        *focused_element = Some(self.token());
+    }
+
+    pub fn token(&self) -> Token {
+        self.element_token
+    }
+
+    pub fn tokens(&self) -> Vec<Token> {
+        let mut tokens = self.element_children.clone();
+        tokens.push(self.element_token);
+        tokens
+    }
+
+    pub(crate) fn children(&self) -> &Vec<Token> {
+        &self.element_children
+    }
+
+    pub fn child<'b>(&self, element_token: Token, element_children: Vec<Token>) -> Context<'b>
     where
         'a: 'b,
     {
@@ -97,7 +129,9 @@ impl<'a> Context<'a> {
             shaper: self.shaper,
             states: self.states,
             default_text_styles: self.default_text_styles.clone(),
+            focused_element: self.focused_element,
             element_token,
+            element_children,
         }
     }
 }
