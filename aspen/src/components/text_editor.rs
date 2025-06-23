@@ -6,7 +6,10 @@ use parley::{
     style::StyleProperty,
     Layout,
 };
-use vello::{kurbo::Size, peniko::Brush};
+use vello::{
+    kurbo::{Rect, Size},
+    peniko::Brush,
+};
 
 use crate::{
     context_stack::{DrawContext, LayoutContext},
@@ -55,6 +58,30 @@ impl TextEditor {
             alignment: Alignment::Start,
             generation: Generation(1),
         })
+    }
+
+    pub fn selected_text(&self) -> Option<&str> {
+        if !self.selection.is_collapsed() {
+            self.text.get(self.selection.text_range())
+        } else {
+            None
+        }
+    }
+
+    fn selection_geometry(&self) -> Vec<(Rect, usize)> {
+        if let Some(layout) = &self.layout {
+            self.selection.geometry(layout)
+        } else {
+            Vec::new()
+        }
+    }
+
+    fn cursor_geometry(&self, size: f32) -> Option<Rect> {
+        if let Some(layout) = &self.layout {
+            Some(self.selection.focus().geometry(layout, size))
+        } else {
+            None
+        }
     }
 }
 
