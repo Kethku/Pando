@@ -3,7 +3,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use vello::kurbo::{Affine, Point, Rect, Size};
+use vello::kurbo::{Affine, Point, Rect, Size, Vec2};
 
 use crate::{
     context_stack::{Context, DrawContext, LayoutContext, UpdateContext},
@@ -179,17 +179,18 @@ impl Deref for LayoutResult {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, sync::Arc};
+    use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
     use vello::Scene;
 
     use super::*;
     use crate::{
         context_stack::{
-            Context, DrawContext, EventState, LayoutContext, MockContextEventLoop,
-            MockContextWindow,
+            AttachedContext, Context, ContextEventLoop, ContextWindow, DrawContext, EventState,
+            LayoutContext, MockContextEventLoop, MockContextWindow,
         },
         mouse_region::MouseRegionManager,
+        shaper::Shaper,
     };
 
     struct TestApp {
@@ -206,7 +207,7 @@ mod tests {
         fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size {
             self.component
                 .layout(min, max, cx)
-                .position(Point::new(10., 10.), cx);
+                .position(Affine::translate(Vec2::new(10., 10.)), cx);
 
             Size::new(70., 70.)
         }
@@ -234,17 +235,21 @@ mod tests {
         let token = Token::new::<TestComponent>();
 
         let cx = {
-            let event_state: &'a EventState = &event_state;
-            let event_loop: &'a dyn ContextEventLoop = &event_loop;
+            let event_state: &EventState = &event_state;
+            let event_loop: &dyn ContextEventLoop = &event_loop;
             let window: Arc<dyn ContextWindow> = window.clone();
-            Context {
-                event_state,
-                event_loop,
+            AttachedContext::new(
+                Context::new(
+                    event_state,
+                    &RefCell::new(Shaper::new()),
+                    &RefCell::new(HashMap::new()),
+                    &RefCell::new(None),
+                    token,
+                    Vec::new(),
+                ),
                 window,
-                shaper: token,
-                default_text_styles: Vec::new(),
-                element_token,
-            }
+                event_loop,
+            )
         };
 
         let mut regions = HashMap::new();
@@ -255,7 +260,7 @@ mod tests {
             size: Size::new(10., 10.),
             token,
         };
-        result.position(Point::new(5., 5.), &mut layout_cx);
+        result.position(Affine::translate(Vec2::new(5., 5.)), &mut layout_cx);
 
         assert_eq!(
             regions[&token],
