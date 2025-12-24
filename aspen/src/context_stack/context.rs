@@ -9,7 +9,7 @@ use crate::{shaper::Shaper, token::Token};
 
 pub struct Context<'a> {
     event_state: &'a EventState,
-    shaper: &'a RefCell<Shaper>,
+    pub(crate) shaper: &'a RefCell<Shaper>,
     default_text_styles: Vec<StyleProperty<'static, Brush>>,
     states: &'a RefCell<HashMap<Token, Box<dyn Any>>>,
     focused_element: &'a RefCell<Option<Token>>,

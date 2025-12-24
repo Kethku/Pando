@@ -1,4 +1,5 @@
 use parley::{
+    editing::PlainEditor,
     FontContext, Layout, LayoutContext, RangedBuilder, fontique::Collection, style::StyleProperty,
 };
 use vello::peniko::Brush;

@@ -9,7 +9,7 @@ pub struct Todo {
 impl Todo {
     pub fn new() -> ElementPointer<Self> {
         Self {
-            editor: TextEditor::new(Brush::Solid(*FOREGROUND)).with_border(
+            editor: TextEditor::new("The quick brown fox jumps".to_string(), Brush::Solid(*FOREGROUND), Brush::Solid(*BACKGROUND_BLUE), Brush::Solid(*FOREGROUND)).with_border(
                 10.,
                 Brush::Solid(*BACKGROUND5),
                 Brush::Solid(*BACKGROUND1),
@@ -25,7 +25,9 @@ impl Element for Todo {
             Brush::Solid(*BACKGROUND4)
         } else {
             Brush::Solid(*BACKGROUND5)
-        }
+        };
+
+        self.editor.update(cx);
     }
 
     fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size {

@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 use super::AttachedContext;
 
@@ -18,6 +18,12 @@ impl<'a> Deref for UpdateContext<'a> {
 
     fn deref(&self) -> &Self::Target {
         &self.context
+    }
+}
+
+impl<'a> DerefMut for UpdateContext<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.context
     }
 }
 
