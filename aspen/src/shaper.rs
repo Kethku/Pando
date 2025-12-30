@@ -1,5 +1,4 @@
 use parley::{
-    editing::PlainEditor,
     FontContext, Layout, LayoutContext, RangedBuilder, fontique::Collection, style::StyleProperty,
 };
 use vello::peniko::Brush;
@@ -22,7 +21,7 @@ impl Shaper {
         text: &str,
         default_styles: &Vec<StyleProperty<'static, Brush>>,
     ) -> Layout<Brush> {
-        let mut builder = self.layout_builder(text, default_styles);
+        let builder = self.layout_builder(text, default_styles);
         let mut layout = builder.build(text);
         layout.break_all_lines(None);
         layout
@@ -34,7 +33,7 @@ impl Shaper {
         max_advance: f32,
         default_styles: &Vec<StyleProperty<'static, Brush>>,
     ) -> Layout<Brush> {
-        let mut builder = self.layout_builder(text, default_styles);
+        let builder = self.layout_builder(text, default_styles);
         let mut layout = builder.build(text);
         layout.break_all_lines(Some(max_advance));
         layout

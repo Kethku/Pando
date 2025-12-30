@@ -51,7 +51,7 @@ impl<'a> UpdateContext<'a> {
     pub fn child<'b>(
         &'b mut self,
         element_token: Token,
-        element_children: Vec<Token>,
+        element_children: &'b Vec<Token>,
     ) -> UpdateContext<'b>
     where
         'a: 'b,

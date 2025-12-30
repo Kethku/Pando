@@ -87,7 +87,7 @@ impl<'a> AttachedContext<'a> {
     pub fn child<'b>(
         &'b mut self,
         element_token: Token,
-        element_children: Vec<Token>,
+        element_children: &'b Vec<Token>,
     ) -> AttachedContext<'b> {
         let child_cx: Context<'b> = self.context.child(element_token, element_children);
         AttachedContext {

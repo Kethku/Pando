@@ -1,5 +1,6 @@
 use std::{
-    collections::{HashMap, HashSet},
+    any::Any,
+    collections::{HashMap, HashSet, hash_map::Entry},
     ops::Deref,
 };
 
@@ -46,13 +47,7 @@ impl<'a> Deref for DrawContext<'a> {
 }
 
 impl<'a> DrawContext<'a> {
-    pub fn new(
-        context: AttachedContext<'a>,
-        mouse_region_manager: &'a mut MouseRegionManager,
-        child_lookup: &'a HashMap<Token, HashSet<Token>>,
-        regions: &'a HashMap<Token, (Affine, Size)>,
-        scene: &'a mut Scene,
-    ) -> DrawContext<'a> {
+    pub fn new(context: AttachedContext<'a>, mouse_region_manager: &'a mut MouseRegionManager, child_lookup: &'a HashMap<Token, HashSet<Token>>, regions: &'a HashMap<Token, (Affine, Size)>, scene: &'a mut Scene) -> Self {
         DrawContext {
             context,
             mouse_region_manager,
@@ -436,10 +431,41 @@ impl<'a> DrawContext<'a> {
         self.any_in_progress_mouse_regions_recursive(self.token())
     }
 
+    pub fn with_initialized_state<State: Any, Result>(&mut self, callback: impl FnOnce(&mut State, &mut DrawContext<'a>) -> Result) -> Result {
+        let mut states = self.states.borrow_mut();
+        let state = states
+            .get_mut(&self.element_token)
+            .expect(&format!(
+                "Tried to get state that hasn't be initialized for {:?}",
+                &self.element_token
+            ))
+            .downcast_mut()
+            .expect("Tried to get state with different type than previous fetch");
+
+        callback(state, self)
+    }
+
+    pub fn with_state<State: Any + Default, Result>(
+        &mut self,
+        callback: impl FnOnce(&mut State, &mut DrawContext<'a>) -> Result,
+    ) -> Result {
+        let mut states = self.states.borrow_mut();
+        let state = match states.entry(self.element_token) {
+            Entry::Occupied(entry) => {
+                entry.into_mut().downcast_mut().expect("Tried to get state with different type than was previously inserted")
+            },
+            Entry::Vacant(entry) => {
+                entry.insert(Box::new(State::default())).downcast_mut().unwrap()
+            }
+        };
+
+        callback(state, self)
+    }
+
     pub(crate) fn child<'b>(
         &'b mut self,
         element_token: Token,
-        element_children: Vec<Token>,
+        element_children: &'b Vec<Token>,
     ) -> DrawContext<'b>
     where
         'a: 'b,

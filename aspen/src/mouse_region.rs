@@ -189,6 +189,8 @@ impl MouseRegionManager {
         regions: &mut HashMap<Token, (Affine, Size)>,
         cx: AttachedContext,
     ) -> bool {
+        // First setup state changes based on the current mouse state.
+
         let mut icon_set = false;
 
         if cx.mouse_just_down() {
@@ -241,9 +243,41 @@ impl MouseRegionManager {
             self.current_right_clicker = None;
         }
 
+        // Then for each kind of event, process regions in reverse order (topmost first).
+        // And call their callbacks if they have any registered.
+
         let mut redraw_requested = false;
         let mut cx = EventContext::new(cx, &mut redraw_requested, regions);
+        let mut left_consumed = false;
+        let mut right_consumed = false;
+        let mut scroll_consumed = false;
         for region in self.mouse_regions.iter().rev() {
+            let mut clipped = false;
+            for clip in region.clip_stack.iter() {
+                if !cx
+                    .actual_mouse_position()
+                    .map_or(false, |pos| clip.contains(pos))
+                {
+                    clipped = true;
+                }
+            }
+
+            // On Scroll
+            if cx.scroll_delta() != Vec2::ZERO && !scroll_consumed {
+                if {
+                    let this = &region;
+                    cx.actual_mouse_position()
+                        .map_or(false, |pos| this.region.contains(pos))
+                } {
+                    if let Some(on_scroll) = &region.on_scroll {
+                        let mut cx = cx.for_region(&region);
+                        on_scroll(&mut cx);
+                        scroll_consumed = true;
+                    }
+                }
+            }
+
+            // On Leave
             if self.hovered_regions.contains(&region.token) {
                 if !{
                     let this = &region;
@@ -256,21 +290,9 @@ impl MouseRegionManager {
                     }
                 }
             }
-        }
 
-        let mut left_consumed = false;
-        let mut right_consumed = false;
-        for region in self.mouse_regions.iter().rev() {
-            let mut clipped = false;
-            for clip in region.clip_stack.iter() {
-                if !cx
-                    .actual_mouse_position()
-                    .map_or(false, |pos| clip.contains(pos))
-                {
-                    clipped = true;
-                }
-            }
 
+            // On Drag
             if let Some(down) = down {
                 if cx
                     .actual_mouse_position()
@@ -297,6 +319,7 @@ impl MouseRegionManager {
                 }
             }
 
+            // On Right Drag
             if let Some((pos, right_down)) = cx.actual_mouse_position().zip(right_down) {
                 if (pos - right_down).length() > MIN_DRAG {
                     self.drag_min_reached = true;
@@ -335,6 +358,7 @@ impl MouseRegionManager {
 
                 self.hovered_regions.insert(region.token);
 
+                // On Hover
                 if !cx.mouse_down() && !cx.right_mouse_down() {
                     if let Some(on_hover) = &region.on_hover {
                         let mut cx = cx.for_region(&region);
@@ -343,11 +367,11 @@ impl MouseRegionManager {
                     }
                 }
 
+                // On Down
                 if cx.mouse_just_down() && !left_consumed {
                     if let Some(on_down) = &region.on_down {
                         let mut cx = cx.for_region(&region);
                         on_down(&mut cx);
-
                         left_consumed = true;
                     }
 
@@ -360,6 +384,7 @@ impl MouseRegionManager {
                     }
                 }
 
+                // On Right Down
                 if cx.right_mouse_just_down() && !right_consumed {
                     if let Some(on_right_down) = &region.on_right_down {
                         let mut cx = cx.for_region(&region);
@@ -377,6 +402,7 @@ impl MouseRegionManager {
                     }
                 }
 
+                // On Released
                 if cx.mouse_released() && !left_consumed {
                     if let Some(on_up) = &region.on_up {
                         let mut cx = cx.for_region(&region);
@@ -394,6 +420,7 @@ impl MouseRegionManager {
                     }
                 }
 
+                // On Right Released
                 if cx.right_mouse_released() && !right_consumed {
                     if let Some(on_right_up) = &region.on_right_up {
                         let mut cx = cx.for_region(&region);
@@ -411,12 +438,9 @@ impl MouseRegionManager {
                     }
                 }
             }
-
-            if left_consumed && right_consumed {
-                break;
-            }
         }
 
+        // Scrolling also gets its own loop.
         for region in self.mouse_regions.iter().rev() {
             if {
                 let this = &region;

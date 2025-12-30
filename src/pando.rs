@@ -2,29 +2,29 @@ use aspen::prelude::*;
 
 use crate::{todo::Todo, util::*};
 
-pub struct App {
+pub struct Pando {
     board: ElementPointer<Board>,
     window_buttons: ElementPointer<WindowButtons>,
     resize_handles: ElementPointer<ResizeHandles>,
 }
 
-impl App {
-    pub fn new(cx: &mut Context) -> ElementPointer<App> {
+impl Pando {
+    pub fn new(cx: &mut Context) -> ElementPointer<Pando> {
         let mut board = Board::new_dotgrid(Affine::IDENTITY, *BACKGROUND0, *BACKGROUND3, cx);
-        board.add_child(Todo::new().as_pinnable(Point::new(-100., -100.), cx));
+        board.add_child(Todo::new(cx).as_pinnable(Point::new(-100., -100.), cx));
         board.add_child(PinWrapper::new_sized(
             Point::new(000., 200.),
             Size::new(300., 300.),
             {
                 let mut board =
                     Board::new_dotgrid(Affine::IDENTITY, *BACKGROUND1, *BACKGROUND4, cx);
-                board.add_child(Todo::new().as_pinnable(Point::ZERO, cx));
+                board.add_child(Todo::new(cx).as_pinnable(Point::ZERO, cx));
                 board
             },
             cx,
         ));
 
-        ElementPointer::new(App {
+        ElementPointer::new(Pando {
             window_buttons: WindowButtons::new(*BACKGROUND3, *CLOSE, *BACKGROUND4, *FOREGROUND),
             resize_handles: ResizeHandles::new(),
             board,
@@ -32,7 +32,7 @@ impl App {
     }
 }
 
-impl Element for App {
+impl Element for Pando {
     fn update(&mut self, cx: &mut UpdateContext) {
         self.board.update(cx);
         self.window_buttons.update(cx);

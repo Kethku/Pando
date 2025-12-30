@@ -1,4 +1,8 @@
-use std::{collections::HashMap, ops::Deref};
+use std::{
+    any::Any,
+    collections::{hash_map::Entry, HashMap},
+    ops::Deref,
+};
 
 use vello::kurbo::{Affine, Point, Rect, Size, Vec2};
 
@@ -10,6 +14,7 @@ use crate::{
     token::Token,
 };
 
+/** Context specialized for mouse region events. */
 pub struct EventContext<'a> {
     context: AttachedContext<'a>,
     redraw_requested: &'a mut bool,
@@ -50,6 +55,7 @@ impl<'a> EventContext<'a> {
         *self.redraw_requested = true;
     }
 
+    /** Returns the mouse position relative to this context's current transform */
     pub fn mouse_position(&self) -> Option<Point> {
         self.actual_mouse_position()
             .map(|pos| self.transform.inverse() * pos)
@@ -128,10 +134,52 @@ impl<'a> EventContext<'a> {
             .transform_rect_bbox(self.actual_window_rect())
     }
 
-    pub fn for_region<'b>(&'b mut self, region: &MouseRegion) -> EventContext<'b> {
+    pub fn focus(&mut self) {
+        self.context.focus();
+        self.request_redraw();
+    }
+
+    pub fn with_initialized_state<State: Any, Result>(
+        &mut self,
+        callback: impl FnOnce(&mut State, &mut EventContext<'a>) -> Result,
+    ) -> Result {
+        let mut states = self.states.borrow_mut();
+        let state = states
+            .get_mut(&self.element_token)
+            .expect(&format!(
+                "Tried to get state that hasn't be initialized for {:?}",
+                &self.element_token
+            ))
+            .downcast_mut()
+            .expect("Tried to get state with different type than previous fetch");
+
+        callback(state, self)
+    }
+
+    pub fn with_state<State: Any + Default, Result>(
+        &mut self,
+        callback: impl FnOnce(&mut State, &mut EventContext<'a>) -> Result,
+    ) -> Result {
+        let mut states = self.states.borrow_mut();
+        let state = match states.entry(self.element_token) {
+            Entry::Occupied(entry) => entry
+                .into_mut()
+                .downcast_mut()
+                .expect("Tried to get state with different type than was previously inserted"),
+            Entry::Vacant(entry) => entry
+                .insert(Box::new(State::default()))
+                .downcast_mut()
+                .unwrap(),
+        };
+
+        callback(state, self)
+    }
+
+    pub fn for_region<'b>(&'b mut self, region: &'b MouseRegion) -> EventContext<'b> {
         let child_cx: AttachedContext<'b> = self
             .context
-            .child(region.token.token, region.element_children.clone());
+            .child(region.token.token, &region.element_children);
+
         EventContext {
             context: child_cx,
 
@@ -140,10 +188,5 @@ impl<'a> EventContext<'a> {
             delta_correction: self.delta_correction,
             transform: region.transform,
         }
-    }
-
-    pub fn focus(&mut self) {
-        self.context.focus();
-        self.request_redraw();
     }
 }

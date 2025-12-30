@@ -1,4 +1,4 @@
-use std::{any::Any, cell::RefCell, collections::HashMap, ops::Deref};
+use std::{any::Any, cell::RefCell, collections::{HashMap, hash_map::Entry}, default::Default, ops::Deref};
 
 use parley::{style::StyleProperty, Layout};
 use vello::peniko::Brush;
@@ -11,10 +11,10 @@ pub struct Context<'a> {
     event_state: &'a EventState,
     pub(crate) shaper: &'a RefCell<Shaper>,
     default_text_styles: Vec<StyleProperty<'static, Brush>>,
-    states: &'a RefCell<HashMap<Token, Box<dyn Any>>>,
+    pub(crate) states: &'a RefCell<HashMap<Token, Box<dyn Any>>>,
     focused_element: &'a RefCell<Option<Token>>,
-    element_token: Token,
-    element_children: Vec<Token>,
+    pub(crate) element_token: Token,
+    element_children: &'a Vec<Token>,
 }
 
 impl<'a> Deref for Context<'a> {
@@ -32,7 +32,7 @@ impl<'a> Context<'a> {
         states: &'a RefCell<HashMap<Token, Box<dyn Any>>>,
         focused_element: &'a RefCell<Option<Token>>,
         element_token: Token,
-        element_children: Vec<Token>,
+        element_children: &'a Vec<Token>,
     ) -> Context<'a> {
         Context {
             event_state,
@@ -70,7 +70,7 @@ impl<'a> Context<'a> {
         states.insert(self.element_token, Box::new(state));
     }
 
-    pub fn with_state<State: Any, Result>(
+    pub fn with_initialized_state<State: Any, Result>(
         &self,
         callback: impl FnOnce(&mut State) -> Result,
     ) -> Result {
@@ -83,6 +83,23 @@ impl<'a> Context<'a> {
             ))
             .downcast_mut()
             .expect("Tried to get state with different type than previous fetch");
+
+        callback(state)
+    }
+
+    pub fn with_state<State: Any + Default, Result>(
+        &self,
+        callback: impl FnOnce(&mut State) -> Result,
+    ) -> Result {
+        let mut states = self.states.borrow_mut();
+        let state = match states.entry(self.element_token) {
+            Entry::Occupied(entry) => {
+                entry.into_mut().downcast_mut().expect("Tried to get state with different type than was previously inserted")
+            },
+            Entry::Vacant(entry) => {
+                entry.insert(Box::new(State::default())).downcast_mut().unwrap()
+            }
+        };
 
         callback(state)
     }
@@ -120,7 +137,7 @@ impl<'a> Context<'a> {
         &self.element_children
     }
 
-    pub fn child<'b>(&self, element_token: Token, element_children: Vec<Token>) -> Context<'b>
+    pub fn child<'b>(&self, element_token: Token, element_children: &'a Vec<Token>) -> Context<'b>
     where
         'a: 'b,
     {

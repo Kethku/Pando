@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod app;
+mod pando;
 // mod ngs;
 mod todo;
 mod util;
@@ -56,9 +56,9 @@ mod util;
 // - Only support text input and backspace. No arrow keys or mouse or anything else.
 // - When text input is focused, the box is highlighted
 
-use app::App;
-use aspen::runner::run;
+use pando::Pando;
+use aspen::prelude::*;
 
 fn main() {
-    run(|cx| App::new(cx))
+    run(|cx| Pando::new(cx))
 }

@@ -119,7 +119,7 @@ impl Element for Board {
     }
 
     fn layout(&mut self, _min: Size, max: Size, cx: &mut LayoutContext) -> Size {
-        let transform = cx.with_state(|state: &mut BoardState| {
+        let transform = cx.with_state(|state: &mut BoardState, _| {
             Affine::translate((max / 2.).to_vec2()) * state.transform
         });
         for child in self.children.iter_mut() {
@@ -139,7 +139,7 @@ impl Element for Board {
             .on_down(|cx| cx.focus())
             .on_right_drag(|cx| {
                 if let Some(delta) = cx.mouse_delta() {
-                    cx.with_state(|state: &mut BoardState| {
+                    cx.with_state(|state: &mut BoardState, _| {
                         state.transform = state.transform.then_translate(delta);
                     });
                     cx.request_redraw();
@@ -147,7 +147,7 @@ impl Element for Board {
             })
             .on_scroll(move |cx| {
                 if let Some(pos) = cx.mouse_position() {
-                    let new_transform = cx.with_state(|state: &mut BoardState| {
+                    let new_transform = cx.with_state(|state: &mut BoardState, cx| {
                         state
                             .transform
                             .then_scale_about(1.0 + cx.scroll_delta().y / 100.0, pos - center)
@@ -155,7 +155,7 @@ impl Element for Board {
 
                     let test_length = new_transform.unskewed_scale().length() / 2.0f64.sqrt();
                     if test_length < 100. && test_length > 0.025 {
-                        cx.with_state(|state: &mut BoardState| {
+                        cx.with_state(|state: &mut BoardState, _| {
                             state.transform = new_transform;
                         });
                         cx.request_redraw();
@@ -168,7 +168,7 @@ impl Element for Board {
             .inverse()
             .transform_rect_bbox(Rect::from_origin_size(Point::ZERO, cx.window_size));
         let adjusted_transform =
-            cx.with_state(|state: &mut BoardState| Affine::translate(center) * state.transform);
+            cx.with_state(|state: &mut BoardState, _| Affine::translate(center) * state.transform);
         let inverse_transform = adjusted_transform.inverse();
         let background = inverse_transform
             .transform_rect_bbox(region)
@@ -238,10 +238,14 @@ impl<Child: Element> Element for PinWrapper<Child> {
     }
 
     fn draw(&self, cx: &mut DrawContext) {
-        cx.mouse_region(cx.region()).on_drag({
+        cx.mouse_region(cx.region())
+            .on_down(|_| {
+                // Block the base pin event from stealing focus
+            })
+            .on_drag({
             move |cx| {
                 if let Some(delta) = cx.mouse_delta() {
-                    cx.with_state(|center: &mut Point| {
+                    cx.with_state(|center: &mut Point, _| {
                         *center += delta;
                     });
                     cx.request_redraw();

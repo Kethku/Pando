@@ -3,13 +3,13 @@ use aspen::prelude::*;
 use crate::util::*;
 
 pub struct Todo {
-    editor: ElementPointer<Border<TextEditor>>,
+    editor: ElementPointer<Border<Editor>>,
 }
 
 impl Todo {
-    pub fn new() -> ElementPointer<Self> {
+    pub fn new<'a>(cx: &Context<'a>) -> ElementPointer<Self> {
         Self {
-            editor: TextEditor::new("The quick brown fox jumps".to_string(), Brush::Solid(*FOREGROUND), Brush::Solid(*BACKGROUND_BLUE), Brush::Solid(*FOREGROUND)).with_border(
+            editor: Editor::new("The quick brown fox jumps".to_string(), 16.0, Brush::Solid(*FOREGROUND), Brush::Solid(*BACKGROUND_BLUE), Brush::Solid(*FOREGROUND), cx).with_border(
                 10.,
                 Brush::Solid(*BACKGROUND5),
                 Brush::Solid(*BACKGROUND1),
