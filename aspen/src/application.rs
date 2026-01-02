@@ -63,14 +63,14 @@ impl<Root: Element> Application<Root> {
         self.root.borrow().token()
     }
 
-    pub fn tick<'a>(&mut self, window: Arc<dyn ContextWindow>, event_loop: &'a dyn ContextEventLoop) -> Option<Scene> {
+    pub fn tick<'a>(&mut self, window: &'a dyn ContextWindow, event_loop: &'a dyn ContextEventLoop) -> Option<Scene> {
         self.refresh_tokens();
-        let mut redraw_requested = self.process_mouse_regions(window.clone(), event_loop);
-        redraw_requested |= self.update(window.clone(), event_loop);
+        let mut redraw_requested = self.process_mouse_regions(window, event_loop);
+        redraw_requested |= self.update(window, event_loop);
 
         let drawn_scene = if redraw_requested || self.force_redraw {
-            let child_lookup = self.layout(window.clone(), event_loop);
-            let scene = self.draw(child_lookup, window.clone(), event_loop);
+            let child_lookup = self.layout(window, event_loop);
+            let scene = self.draw(child_lookup, window, event_loop);
 
             Some(scene)
         } else {
@@ -87,7 +87,18 @@ impl<Root: Element> Application<Root> {
         self.tokens = Arc::new(root.tokens());
     }
 
-    pub fn context<'a>(&'a self, window: Arc<dyn ContextWindow>, event_loop: &'a dyn ContextEventLoop) -> AttachedContext<'a> {
+    pub fn context<'a>(&'a self) -> Context<'a> {
+        Context::new(
+            &self.event_state,
+            &self.shaper,
+            &self.states,
+            &self.focused_element,
+            self.base_token, 
+            &self.tokens
+        )
+    }
+
+    pub fn attached_context<'a>(&'a self, window: &'a dyn ContextWindow, event_loop: &'a dyn ContextEventLoop) -> AttachedContext<'a> {
         AttachedContext::new(
             Context::new(
                 &self.event_state,
@@ -102,17 +113,17 @@ impl<Root: Element> Application<Root> {
         )
     }
 
-    pub fn process_mouse_regions(&self, window: Arc<dyn ContextWindow>, event_loop: &dyn ContextEventLoop) -> bool {
+    pub fn process_mouse_regions(&self, window: &dyn ContextWindow, event_loop: &dyn ContextEventLoop) -> bool {
         let mut mouse_region_manager = self.mouse_region_manager.borrow_mut();
         let mut regions = self.regions.borrow_mut();
-        mouse_region_manager.process_regions(&mut regions, self.context(window.clone(), event_loop))
+        mouse_region_manager.process_regions(&mut regions, self.attached_context(window, event_loop))
     }
 
-    pub fn update(&self,  window: Arc<dyn ContextWindow>, event_loop: &dyn ContextEventLoop) -> bool {
+    pub fn update(&self, window: &dyn ContextWindow, event_loop: &dyn ContextEventLoop) -> bool {
         let mut mouse_region_manager = self.mouse_region_manager.borrow_mut();
         let mut redraw_requested = false;
         let mut update_context = UpdateContext::new(
-            self.context(window.clone(), event_loop),
+            self.attached_context(window, event_loop),
             &mut mouse_region_manager,
             &mut redraw_requested,
         );
@@ -122,12 +133,12 @@ impl<Root: Element> Application<Root> {
         redraw_requested
     }
 
-    pub fn layout(&self, window: Arc<dyn ContextWindow>, event_loop: &dyn ContextEventLoop) -> HashMap<Token, HashSet<Token>> {
+    pub fn layout(&self, window: &dyn ContextWindow, event_loop: &dyn ContextEventLoop) -> HashMap<Token, HashSet<Token>> {
         let mut regions = self.regions.borrow_mut();
         let mut child_lookup = HashMap::new();
         {
             let mut layout_context = LayoutContext::new(
-                self.context(window.clone(), event_loop),
+                self.attached_context(window, event_loop),
                 &mut regions,
                 &mut child_lookup,
             );
@@ -143,7 +154,7 @@ impl<Root: Element> Application<Root> {
         child_lookup
     }
 
-    pub fn draw<'a>(&mut self, child_lookup: HashMap<Token, HashSet<Token>>, window: Arc<dyn ContextWindow>, event_loop: &dyn ContextEventLoop) -> Scene {
+    pub fn draw<'a>(&mut self, child_lookup: HashMap<Token, HashSet<Token>>, window: &dyn ContextWindow, event_loop: &dyn ContextEventLoop) -> Scene {
         let mut mouse_region_manager = self.mouse_region_manager.borrow_mut();
         let regions = self.regions.borrow();
         let root = self.root.borrow();
@@ -151,7 +162,7 @@ impl<Root: Element> Application<Root> {
         mouse_region_manager.clear_regions();
         let mut scene = Scene::new();
         let mut draw_context = {
-            let context = self.context(window, event_loop);
+            let context = self.attached_context(window, event_loop);
             DrawContext::new(context, &mut mouse_region_manager, &child_lookup, &regions, &mut scene)
         };
         root.draw(&mut draw_context);
@@ -159,5 +170,12 @@ impl<Root: Element> Application<Root> {
         self.force_redraw = false;
 
         scene
+    }
+
+    pub fn with_root<Result>(&self, callback: impl FnOnce(&Root, &Context) -> Result) -> Result {
+        let root = self.root.borrow();
+        root.with_context(&self.context(), |cx| {
+            callback(&root, cx)
+        })
     }
 }

@@ -1,5 +1,5 @@
 use vello::kurbo::{Point, Rect, Size, Vec2};
-use winit::event::{KeyEvent, Modifiers};
+use winit::{event::{ElementState, Modifiers}, keyboard::Key};
 
 pub struct EventState {
     pub window_size: Size,
@@ -119,4 +119,10 @@ impl EventState {
     pub fn key_events(&self) -> &[KeyEvent] {
         &self.key_events
     }
+}
+
+#[derive(Clone)]
+pub struct KeyEvent {
+    pub key: Key,
+    pub state: ElementState,
 }

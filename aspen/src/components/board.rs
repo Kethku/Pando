@@ -107,7 +107,7 @@ impl Board {
 
 impl ElementPointer<Board> {
     pub fn transform<'a>(&self, cx: &impl Deref<Target = Context<'a>>) -> Affine {
-        self.with_state(cx, |state: &mut BoardState| state.transform)
+        self.with_state(cx, |state: &mut BoardState, _| state.transform)
     }
 }
 
@@ -255,11 +255,15 @@ impl<Child: Element> Element for PinWrapper<Child> {
 
         self.child.draw(cx);
     }
+
+    fn children(&self) -> Vec<Token> {
+        vec![self.child.token()]
+    }
 }
 
 impl<Child: Element> Pinnable for PinWrapper<Child> {
     fn center(&self, cx: &Context) -> Point {
-        cx.with_state(|center: &mut Point| *center)
+        cx.with_state(|center: &mut Point, _| *center)
     }
 }
 

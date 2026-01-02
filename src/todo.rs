@@ -7,7 +7,7 @@ pub struct Todo {
 }
 
 impl Todo {
-    pub fn new<'a>(cx: &Context<'a>) -> ElementPointer<Self> {
+    pub fn new<'a>(cx: &mut Context<'a>) -> ElementPointer<Self> {
         Self {
             editor: Editor::new("The quick brown fox jumps".to_string(), 16.0, Brush::Solid(*FOREGROUND), Brush::Solid(*BACKGROUND_BLUE), Brush::Solid(*FOREGROUND), cx).with_border(
                 10.,

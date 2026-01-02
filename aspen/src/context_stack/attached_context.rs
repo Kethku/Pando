@@ -1,6 +1,5 @@
 use std::{
     ops::{Deref, DerefMut},
-    sync::Arc,
 };
 
 use mockall::*;
@@ -15,7 +14,7 @@ use crate::token::Token;
 
 pub struct AttachedContext<'a> {
     context: Context<'a>,
-    window: Arc<dyn ContextWindow>,
+    window: &'a dyn ContextWindow,
     event_loop: &'a dyn ContextEventLoop,
 }
 
@@ -36,7 +35,7 @@ impl<'a> DerefMut for AttachedContext<'a> {
 impl<'a> AttachedContext<'a> {
     pub fn new(
         context: Context<'a>,
-        window: Arc<dyn ContextWindow>,
+        window: &'a dyn ContextWindow,
         event_loop: &'a dyn ContextEventLoop,
     ) -> AttachedContext<'a> {
         AttachedContext {
@@ -92,7 +91,7 @@ impl<'a> AttachedContext<'a> {
         let child_cx: Context<'b> = self.context.child(element_token, element_children);
         AttachedContext {
             context: child_cx,
-            window: self.window.clone(),
+            window: self.window,
             event_loop: self.event_loop,
         }
     }

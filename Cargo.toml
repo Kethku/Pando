@@ -16,6 +16,7 @@ license.workspace = true
 
 [dependencies]
 aspen = { path = "./aspen" }
+bevy_ecs = "0.17.3"
 bytemuck = { version = "1.14.3", features = ["derive"] }
 futures = "0.3"
 mockall = "0.13"

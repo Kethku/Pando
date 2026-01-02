@@ -12,7 +12,7 @@ use vello::{
 };
 use winit::{
     event::{ElementState, Modifiers},
-    keyboard::{Key, NamedKey},
+    keyboard::{Key, NamedKey}, window::CursorIcon,
 };
 
 use crate::{
@@ -33,7 +33,6 @@ pub struct EditorState {
     previous_max_width: f64,
     buffer: String,
     selection: Selection,
-    layout_dirty: bool,
 }
 
 impl Editor {
@@ -43,8 +42,19 @@ impl Editor {
         text_stroke: Brush,
         selection_fill: Brush,
         cursor_stroke: Brush,
-        cx: &Context<'a>,
+        cx: &mut Context<'a>,
     ) -> ElementPointer<Self> {
+        let mut state = EditorState {
+                layout: Layout::default(),
+                previous_max_width: f64::INFINITY,
+                buffer: text,
+                selection: Default::default(),
+            };
+
+        cx.push_default_text_style(StyleProperty::FontSize(size));
+        cx.push_default_text_style(StyleProperty::Brush(text_stroke.clone()));
+        state.update_layout(cx);
+
         ElementPointer::new(Self {
             text_stroke,
             selection_fill,
@@ -52,13 +62,7 @@ impl Editor {
             size,
         })
         .insert_state(
-            EditorState {
-                layout: Layout::default(),
-                previous_max_width: f64::INFINITY,
-                buffer: text,
-                selection: Default::default(),
-                layout_dirty: true,
-            },
+            state,
             cx,
         )
     }
@@ -82,7 +86,7 @@ impl EditorState {
     }
 
     /// Insert at cursor, or replace selection.
-    pub fn insert_or_replace_selection(&mut self, s: &str) {
+    pub fn insert_or_replace_selection(&mut self, s: &str, cx: &Context) {
         let range = self.selection.text_range();
         let start = range.start;
         if self.selection.is_collapsed() {
@@ -90,8 +94,8 @@ impl EditorState {
         } else {
             self.buffer.replace_range(range.clone(), s);
         }
+        self.update_layout(cx);
 
-        self.layout_dirty = true;
         let new_index = start.saturating_add(s.len());
         let affinity = if s.ends_with("\n") {
             Affinity::Downstream
@@ -102,8 +106,8 @@ impl EditorState {
     }
 
     /// Delete the selection.
-    pub fn delete_selection(&mut self) {
-        self.insert_or_replace_selection("");
+    pub fn delete_selection(&mut self, cx: &Context) {
+        self.insert_or_replace_selection("", cx);
     }
 
     /// Delete the specified numbers of bytes before the selection.
@@ -112,7 +116,7 @@ impl EditorState {
     ///
     /// The deleted range is clamped to the start of the buffer.
     /// No-op if the start of the range is not a char boundary.
-    pub fn delete_bytes_before_selection(&mut self, len: NonZeroUsize) {
+    pub fn delete_bytes_before_selection(&mut self, len: NonZeroUsize, cx: &Context) {
         let old_selection = self.selection;
         let selection_range = old_selection.text_range();
         let range = selection_range.start.saturating_sub(len.get())..selection_range.start;
@@ -120,7 +124,7 @@ impl EditorState {
             return;
         }
         self.buffer.replace_range(range.clone(), "");
-        self.layout_dirty = true;
+        self.update_layout(cx);
         let old_anchor = old_selection.anchor();
         let old_focus = old_selection.focus();
         // When doing the equivalent of a backspace on a collapsed selection,
@@ -144,8 +148,28 @@ impl EditorState {
         ));
     }
 
+    /// Delete the specified numbers of bytes after the selection.
+    /// The selection is unchanged.
+    ///
+    /// The deleted range is clamped to the end of the buffer.
+    /// No-op if the end of the range is not a char boundary.
+    pub fn delete_bytes_after_selection(&mut self, len: NonZeroUsize, cx: &Context) {
+        let selection_range = self.selection.text_range();
+        let range = selection_range.end
+            ..selection_range
+                .end
+                .saturating_add(len.get())
+                .min(self.buffer.len());
+        if range.is_empty() || !self.buffer.is_char_boundary(range.end) {
+            return;
+        }
+        self.buffer.replace_range(range.clone(), "");
+        self.update_layout(cx);
+    }
+
+
     /// Delete the selection or the next cluster (typical ‘delete’ behavior).
-    pub fn delete(&mut self) {
+    pub fn delete(&mut self, cx: &Context) {
         if self.selection.is_collapsed() {
             // Upstream cluster range
             if let Some(range) = self.selection.focus().logical_clusters(&self.layout)[1]
@@ -154,33 +178,33 @@ impl EditorState {
                 .and_then(|range| (!range.is_empty()).then_some(range))
             {
                 self.buffer.replace_range(range.clone(), "");
-                self.layout_dirty = true;
+                self.update_layout(cx);
             }
         } else {
-            self.delete_selection();
+            self.delete_selection(cx);
         }
     }
 
     /// Delete the selection or up to the next word boundary (typical ‘ctrl + delete’ behavior).
-    pub fn delete_word(&mut self) {
+    pub fn delete_word(&mut self, cx: &Context) {
         if self.selection.is_collapsed() {
             let focus = self.selection.focus();
             let start = focus.index();
             let end = focus.next_logical_word(&self.layout).index();
             if self.buffer.get(start..end).is_some() {
                 self.buffer.replace_range(start..end, "");
-                self.layout_dirty = true;
+                self.update_layout(cx);
                 self.set_selection(
                     Cursor::from_byte_index(&self.layout, start, Affinity::Downstream).into(),
                 );
             }
         } else {
-            self.delete_selection();
+            self.delete_selection(cx);
         }
     }
 
     /// Delete the selection or the previous cluster (typical ‘backspace’ behavior).
-    pub fn backdelete(&mut self) {
+    pub fn backdelete(&mut self, cx: &Context) {
         if self.selection.is_collapsed() {
             // Upstream cluster
             if let Some(cluster) = self.selection.focus().logical_clusters(&self.layout)[0].clone()
@@ -202,31 +226,31 @@ impl EditorState {
                     start
                 };
                 self.buffer.replace_range(start..end, "");
-                self.layout_dirty = true;
+                self.update_layout(cx);
                 self.set_selection(
                     Cursor::from_byte_index(&self.layout, start, Affinity::Downstream).into(),
                 );
             }
         } else {
-            self.delete_selection();
+            self.delete_selection(cx);
         }
     }
 
     /// Delete the selection or back to the previous word boundary (typical ‘ctrl + backspace’ behavior).
-    pub fn backdelete_word(&mut self) {
+    pub fn backdelete_word(&mut self, cx: &Context) {
         if self.selection.is_collapsed() {
             let focus = self.selection.focus();
             let end = focus.index();
             let start = focus.previous_logical_word(&self.layout).index();
             if self.buffer.get(start..end).is_some() {
                 self.buffer.replace_range(start..end, "");
-                self.layout_dirty = true;
+                self.update_layout(cx);
                 self.set_selection(
                     Cursor::from_byte_index(&self.layout, start, Affinity::Downstream).into(),
                 );
             }
         } else {
-            self.delete_selection();
+            self.delete_selection(cx);
         }
     }
 
@@ -475,7 +499,17 @@ impl EditorState {
         self.selection.focus().geometry(&self.layout, size)
     }
 
-    pub fn handle_pressed_key(&mut self, key: Key, modifiers: Modifiers) -> bool {
+    pub fn update_layout(&mut self, cx: &Context) {
+        if self.previous_max_width.is_finite() {
+            self.layout = cx.layout_within(&self.buffer, self.previous_max_width as f32);
+        } else {
+            self.layout = cx.layout(&self.buffer);
+        }
+
+        self.selection = self.selection.refresh(&self.layout);
+    }
+
+    pub fn handle_pressed_key(&mut self, key: Key, modifiers: Modifiers, cx: &Context) -> bool {
         let state = modifiers.state();
 
         let action_mod = state.control_key();
@@ -495,13 +529,13 @@ impl EditorState {
                         if let Some(text) = self.selected_text() {
                             let clipboard = ClipboardContext::new().unwrap();
                             clipboard.set_text(text.to_owned()).ok();
-                            self.delete_selection();
+                            self.delete_selection(cx);
                         }
                     }
                     "v" => {
                         let clipboard = ClipboardContext::new().unwrap();
                         let text = clipboard.get_text().unwrap_or_default();
-                        self.insert_or_replace_selection(&text);
+                        self.insert_or_replace_selection(&text, cx);
                     }
                     _ => (),
                 }
@@ -583,32 +617,33 @@ impl EditorState {
                 } else if shift {
                     self.select_to_line_end();
                 } else {
+                    println!("End");
                     self.move_to_line_end();
                 }
                 return true;
             }
             Key::Named(NamedKey::Delete) => {
                 if action_mod {
-                    self.delete_word();
+                    self.delete_word(cx);
                 } else {
-                    self.delete();
+                    self.delete(cx);
                 }
                 return true;
             }
             Key::Named(NamedKey::Backspace) => {
                 if action_mod {
-                    self.backdelete_word();
+                    self.backdelete_word(cx);
                 } else {
-                    self.backdelete();
+                    self.backdelete(cx);
                 }
                 return true;
             }
             Key::Named(NamedKey::Enter) => {
-                self.insert_or_replace_selection("\n");
+                self.insert_or_replace_selection("\n", cx);
                 return true;
             }
             Key::Named(NamedKey::Space) => {
-                self.insert_or_replace_selection(" ");
+                self.insert_or_replace_selection(" ", cx);
                 return true;
             }
             Key::Named(NamedKey::Escape) => {
@@ -616,7 +651,7 @@ impl EditorState {
                 return true;
             }
             Key::Character(s) => {
-                self.insert_or_replace_selection(&s.to_string());
+                self.insert_or_replace_selection(&s.to_string(), cx);
                 return true;
             }
             _ => {
@@ -632,8 +667,11 @@ impl Element for Editor {
             return;
         }
 
+        cx.push_default_text_style(StyleProperty::FontSize(self.size));
+        cx.push_default_text_style(StyleProperty::Brush(self.text_stroke.clone()));
+
         let mut request_redraw = false;
-        cx.with_state(|state: &mut EditorState| {
+        cx.with_state(|state: &mut EditorState, cx| {
             let modifiers = cx.modifiers();
             let key_events: Vec<_> = cx.key_events().into();
             for key_event in key_events {
@@ -641,7 +679,7 @@ impl Element for Editor {
                     continue;
                 }
 
-                request_redraw |= state.handle_pressed_key(key_event.logical_key, modifiers);
+                request_redraw |= state.handle_pressed_key(key_event.key, modifiers, cx);
             }
         });
 
@@ -651,21 +689,10 @@ impl Element for Editor {
     }
 
     fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size {
-        cx.push_default_text_style(StyleProperty::FontSize(self.size));
-        cx.push_default_text_style(StyleProperty::Brush(self.text_stroke.clone()));
-
         cx.with_state(|state: &mut EditorState, cx| {
-            let max_width = max.width;
-            if state.layout_dirty || max_width != state.previous_max_width {
-                if max_width.is_finite() {
-                    state.layout = cx.layout_within(&state.buffer, max_width as f32);
-                } else {
-                    state.layout = cx.layout(&state.buffer);
-                }
-
-                state.selection = state.selection.refresh(&state.layout);
-                state.layout_dirty = false;
-                state.previous_max_width = max_width;
+            if state.previous_max_width != max.width {
+                state.previous_max_width = max.width;
+                cx.request_redraw();
             }
 
             let size = Size::new(
@@ -692,7 +719,8 @@ impl Element for Editor {
                         state.extend_selection_to_point(cx.mouse_position().unwrap());
                         cx.request_redraw();
                     });
-                });
+                })
+                .with_icon(CursorIcon::Text);
         } else {
             cx.mouse_region(region).on_click(move |cx| {
                 cx.focus();
@@ -715,5 +743,45 @@ impl Element for Editor {
             let top_left = region.origin();
             cx.draw_layout_at(&state.layout, top_left);
         });
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use vello::peniko::Color;
+
+    use super::*;
+    use crate::{
+        test_runner::TestRunner,
+    };
+
+    #[test]
+    fn editor_inserts_text_at_end() {
+        let mut test_runner = TestRunner::new(Size::new(100., 100.), |cx| Editor::new(
+                "Hello".to_string(),
+                12.0,
+                Brush::Solid(Color::BLACK),
+                Brush::Solid(Color::from_rgb8(125, 125, 125)),
+                Brush::Solid(Color::BLACK),
+                cx
+            ));
+        test_runner.expect_cursor_icon(winit::window::Cursor::Icon(CursorIcon::Default));
+        test_runner.with_root(|_, cx| {
+            cx.focus();
+        });
+        test_runner.input_key(Key::Named(NamedKey::End));
+        test_runner.with_root(|_, cx| {
+            cx.with_state(|state: &mut EditorState, _| {
+                assert_eq!(state.selection.text_range(), 5..5);
+            });
+        });
+        test_runner.input_text(" World!");
+        test_runner.with_root(|_, cx| {
+            cx.with_state(|state: &mut EditorState, _| {
+                assert_eq!(state.buffer, "Hello World!");
+            });
+        });
+
     }
 }

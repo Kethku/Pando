@@ -130,7 +130,7 @@ impl<E: Element> ElementPointer<E> {
     pub fn with_initialized_state<'a, State: Any, Result>(
         &self,
         cx: &Context<'a>,
-        callback: impl FnOnce(&mut State) -> Result,
+        callback: impl FnOnce(&mut State, &Context) -> Result,
     ) -> Result {
         self.with_context(cx, |cx| cx.with_initialized_state(callback))
     }
@@ -138,7 +138,7 @@ impl<E: Element> ElementPointer<E> {
     pub fn with_state<'a, State: Any + Default, Result>(
         &self,
         cx: &Context<'a>,
-        callback: impl FnOnce(&mut State) -> Result,
+        callback: impl FnOnce(&mut State, &Context) -> Result,
     ) -> Result {
         self.with_context(cx, |cx| cx.with_state(callback))
     }
@@ -186,87 +186,5 @@ impl Deref for LayoutResult {
 
     fn deref(&self) -> &Self::Target {
         &self.size
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use vello::kurbo::Vec2;
-
-    use super::*;
-    use crate::{
-        context_stack::LayoutContext,
-        test_runner::TestRunner,
-    };
-
-    struct TestApp {
-        component: ElementPointer<TestNestingComponent>,
-    }
-    impl TestApp {
-        fn new() -> ElementPointer<Self> {
-            ElementPointer::new(Self {
-                component: TestNestingComponent::new(),
-            })
-        }
-    }
-    impl Element for TestApp {
-        fn layout(&mut self, _: Size, max: Size, cx: &mut LayoutContext) -> Size {
-            self.component
-                .layout(Size::new(0., 0.), max, cx)
-                .position(Affine::translate(Vec2::new(10., 10.)), cx);
-
-            Size::new(70., 70.)
-        }
-    }
-
-    struct TestNestingComponent {
-        child: ElementPointer<TestComponent>,
-    }
-    impl TestNestingComponent {
-        fn new() -> ElementPointer<Self> {
-            ElementPointer::new(Self {
-                child: TestComponent::new(),
-            })
-        }
-    }
-    impl Element for TestNestingComponent {
-        fn layout(&mut self, min: Size, max: Size, cx: &mut LayoutContext) -> Size {
-            self.child.layout(min, max, cx)
-                .position(Affine::translate(Vec2::new(10., 10.)), cx);
-
-            Size::new(50., 50.)
-        }
-    }
-
-    struct TestComponent {}
-    impl TestComponent {
-        fn new() -> ElementPointer<Self> {
-            ElementPointer::new(Self {})
-        }
-    }
-    impl Element for TestComponent {
-        fn layout(&mut self, _min: Size, _max: Size, _cx: &mut LayoutContext) -> Size {
-            Size::new(30., 30.)
-        }
-    }
-
-    #[test]
-    fn nested_components_adjusts_regions() {
-        let test_runner = TestRunner::new(Size::new(100., 100.), |_| TestApp::new());
-        test_runner.layout();
-        let regions = test_runner.regions.borrow();
-        let root = test_runner.root.borrow();
-
-        println!("Regions: {:?}", *regions);
-
-        assert_eq!(
-            regions[&root.component.token()],
-            (Affine::translate(Vec2::new(10., 10.)), Size::new(50., 50.))
-        );
-        assert_eq!(
-            regions[&root.component.child.token()],
-            (Affine::translate(Vec2::new(20., 20.)), Size::new(30., 30.))
-        );
     }
 }

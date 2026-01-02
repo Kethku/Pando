@@ -13,7 +13,7 @@ use winit::{
 };
 
 use crate::{
-    application::Application, context_stack::Context,
+    application::Application, context_stack::{Context, KeyEvent},
     element::{Element, ElementPointer}, winit_renderer::WinitRenderer
 };
 
@@ -39,12 +39,13 @@ impl<Root: Element> WinitApplicationHandler<Root> {
 
     fn draw_frame(&mut self, event_loop: &ActiveEventLoop) {
         let window = self.renderer.as_ref().unwrap().window.clone();
-        if let Some(scene) = self.application.tick(window.clone(), event_loop) {
+        if let Some(scene) = self.application.tick(window.as_ref(), event_loop) {
             self.renderer.as_mut().unwrap().draw(&scene, &window);
 
             if !window.is_visible().unwrap_or_default() {
                 window.set_visible(true);
             }
+
             // Request a redraw so that we can continue timers if they need to
             window.request_redraw();
         }
@@ -119,7 +120,10 @@ impl<A: Element> ApplicationHandler for WinitApplicationHandler<A> {
                 self.renderer.as_ref().unwrap().window.request_redraw();
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                self.application.event_state.key_events.push(event.clone());
+                self.application.event_state.key_events.push(KeyEvent {
+                    key: event.logical_key,
+                    state: event.state,
+                });
                 self.renderer.as_ref().unwrap().window.request_redraw();
             }
             _ => {}

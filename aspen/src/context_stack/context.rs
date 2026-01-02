@@ -20,8 +20,7 @@ pub struct Context<'a> {
 impl<'a> Deref for Context<'a> {
     type Target = EventState;
 
-    fn deref(&self) -> &Self::Target {
-        self.event_state
+    fn deref(&self) -> &Self::Target { self.event_state
     }
 }
 
@@ -53,13 +52,13 @@ impl<'a> Context<'a> {
         self.default_text_styles.clear();
     }
 
-    pub fn layout(&mut self, text: &str) -> Layout<Brush> {
+    pub fn layout(&self, text: &str) -> Layout<Brush> {
         self.shaper
             .borrow_mut()
             .layout(text, &self.default_text_styles)
     }
 
-    pub fn layout_within(&mut self, text: &str, max_advance: f32) -> Layout<Brush> {
+    pub fn layout_within(&self, text: &str, max_advance: f32) -> Layout<Brush> {
         self.shaper
             .borrow_mut()
             .layout_within(text, max_advance, &self.default_text_styles)
@@ -72,7 +71,7 @@ impl<'a> Context<'a> {
 
     pub fn with_initialized_state<State: Any, Result>(
         &self,
-        callback: impl FnOnce(&mut State) -> Result,
+        callback: impl FnOnce(&mut State, &Self) -> Result,
     ) -> Result {
         let mut states = self.states.borrow_mut();
         let state = states
@@ -84,12 +83,12 @@ impl<'a> Context<'a> {
             .downcast_mut()
             .expect("Tried to get state with different type than previous fetch");
 
-        callback(state)
+        callback(state, self)
     }
 
     pub fn with_state<State: Any + Default, Result>(
         &self,
-        callback: impl FnOnce(&mut State) -> Result,
+        callback: impl FnOnce(&mut State, &Self) -> Result,
     ) -> Result {
         let mut states = self.states.borrow_mut();
         let state = match states.entry(self.element_token) {
@@ -101,7 +100,7 @@ impl<'a> Context<'a> {
             }
         };
 
-        callback(state)
+        callback(state, self)
     }
 
     pub fn is_directly_focused(&self) -> bool {
