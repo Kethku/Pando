@@ -3,7 +3,7 @@ use aspen::prelude::*;
 use crate::util::*;
 
 pub struct Todo {
-    editor: ElementPointer<Border<Editor>>,
+    editor: ElementPointer<Block<Editor>>,
 }
 
 impl Todo {
