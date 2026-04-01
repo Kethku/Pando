@@ -174,7 +174,7 @@ impl Element for Board {
             .transform_rect_bbox(region)
             .intersect(inverse_transform.transform_rect_bbox(window_region));
 
-        cx.push_layer(1.0, &region);
+        cx.push_layer(&region);
         cx.transform(adjusted_transform);
 
         (self.draw_background)(background, cx);

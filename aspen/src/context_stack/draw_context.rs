@@ -7,7 +7,7 @@ use std::{
 use parley::{layout::PositionedLayoutItem, Layout};
 use vello::{
     kurbo::{Affine, BezPath, Line, Point, Rect, RoundedRect, Shape, Size, Stroke, Vec2},
-    peniko::{BlendMode, Brush, Color, Fill},
+    peniko::{Brush, Color, Fill, StyleRef},
     Scene,
 };
 
@@ -219,7 +219,7 @@ impl<'a> DrawContext<'a> {
         }
     }
 
-    pub fn push_layer(&mut self, alpha: f32, clip: &impl Shape) {
+    pub fn push_layer(&mut self, clip: &impl Shape) {
         {
             // Clone most recent local transform onto the stack
             let local_transform = self.local_transform_stack.last().copied().unwrap();
@@ -228,7 +228,7 @@ impl<'a> DrawContext<'a> {
 
         let transform = self.current_transform();
         self.scene
-            .push_layer(BlendMode::default(), alpha, transform, clip);
+            .push_clip_layer(StyleRef::Fill(Fill::EvenOdd), transform, clip);
         self.clip_stack.push(transform * clip.to_path(0.1));
     }
 
